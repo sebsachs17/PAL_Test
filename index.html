@@ -7,12 +7,12 @@
   <style>
     body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; max-width: 960px; margin: 40px auto; padding: 0 16px; }
     h1 { margin-bottom: 0.35rem; }
-    .meta { color: #555; margin-bottom: 1rem; }
+    .meta { color: #555; margin-bottom: 0.5rem; }
     .legend { background:#f7f7f7; border:1px solid #e5e5e5; padding:10px 12px; border-radius:8px; margin-bottom: 14px; }
+    .actions { display:flex; gap: 12px; margin: 12px 0 16px; flex-wrap: wrap; align-items:center; }
     .card { border: 1px solid #e5e5e5; border-radius: 10px; padding: 16px; margin: 16px 0; }
     .choices label { display:block; margin: 6px 0; cursor: pointer; }
     button { padding: 10px 16px; border-radius: 8px; border: 1px solid #cfcfcf; cursor: pointer; }
-    .actions { display:flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; align-items:center; }
     .result { font-weight: 700; padding: 12px; border-radius: 10px; margin-top: 12px; }
     .pass { background: #e7f7ee; border: 1px solid #a6e0c3; color: #0f5c3a; }
     .fail { background: #fdecec; border: 1px solid #f3b7b7; color: #8a1c1c; }
@@ -22,6 +22,8 @@
     .pill { font-size:0.8rem; color:#333; background:#eef5ff; border:1px solid #cfe2ff; border-radius:999px; padding:2px 8px; margin-left:8px; }
     .pill.bad { background:#fff0f0; border-color:#f1c0c0; }
     .right { margin-left:auto; }
+    .timer { font-weight: 800; padding: 6px 10px; border-radius: 8px; border: 1px solid #e5e5e5; }
+    .timer.warning { color: #8a1c1c; border-color: #f3b7b7; background: #fdecec; }
   </style>
 </head>
 <body>
@@ -34,6 +36,7 @@
   </div>
 
   <div class="actions">
+    <div id="timer" class="timer" aria-live="polite" title="Countdown"></div>
     <button id="submitBtn">Abgeben & Ergebnis anzeigen</button>
     <button id="retryBtn" class="hidden">Neu starten</button>
     <label class="right"><input type="checkbox" id="togglePsych"> SI/TI anzeigen (nur Ersteller)</label>
@@ -50,136 +53,133 @@
 
 <script>
 /* ======= KONFIGURATION ======= */
-const TEST_TITLE = "Praxisanleitung im Rettungsdienst – 15 Single-Choice-Fragen";
-const TEST_DESC  = "Zeitempfehlung: 12–15 Min";
-const PASS_THRESHOLD = 70; // % für "Bestanden"
+const TEST_TITLE = "Prüfen, Prüfungsangst & Bezugsnormen – 15 Single-Choice-Fragen";
+const TEST_DESC  = "Zeitempfehlung: 5–10 Min";
+const PASS_THRESHOLD = 60; // % für "Bestanden"
+const TIME_LIMIT_SECS = 5 * 60; // 5 Minuten Timer (ändern auf z.B. 8*60)
 
 /* ======= FRAGENBANK (SI/TI enthalten) =======
-  Felder je Item:
-  - q: Frage
-  - choices: Antwortoptionen
-  - correctIndex: Index der korrekten Option
-  - feedback: kurze Erläuterung
-  - si: Schwierigkeitsindex p (0..1)
-  - ti: Trennschärfe (−1..+1; hier ca. 0..0.5 als typische Praxiswerte)
+  Themen: Prüfen (OSCE/Objektivität/Reliabilität/Validität), Prüfungsangst (Interventionen/Attribution),
+          Bezugsnormen (kriterial/sozial/individual).
+  Felder je Item: q, choices[], correctIndex, feedback, si (0..1), ti (-1..+1)
 */
 const ITEM_BANK = [
-  { q: "Welche erste Formulierung eröffnet ein konstruktives Feedbackgespräch am besten, wenn ein Schüler beim i.v.-Zugang verunsichert ist?",
+  { q: "Welche erste Formulierung eröffnet ein konstruktives Prüfungs-Feedbackgespräch am besten, wenn ein Prüfling verunsichert ist?",
     choices: [
       "„Warum haben Sie das schon wieder falsch gemacht?“",
       "„Beschreiben Sie bitte kurz aus Ihrer Sicht den Ablauf – was lief gut, was möchten Sie verbessern?“",
       "„Das war insgesamt mangelhaft, wir müssen alles neu üben.“",
       "„Ich erkläre Ihnen jetzt, wie es richtig geht; Fragen später.“"
     ],
-    correctIndex: 1, feedback: "Selbsteinschätzung vor Fremdeinschätzung (Sandwich/Pendleton-ähnlich).", si: 0.72, ti: 0.36
+    correctIndex: 1, feedback: "Selbsteinschätzung zuerst; öffnet die Reflexion und entlastet.", si: 0.72, ti: 0.36
   },
-  { q: "Benner-Modell: Welche Reihenfolge ist korrekt?",
+  { q: "Welche Bezugsnorm orientiert die Bewertung an festgelegten Kriterien (z. B. Checkliste, Kompetenzstandard)?",
     choices: [
-      "Novize → Fortgeschrittener Anfänger → Kompetent → Erfahren → Experte",
-      "Novize → Kompetent → Fortgeschrittener Anfänger → Experte → Erfahren",
-      "Fortgeschrittener Anfänger → Novize → Kompetent → Erfahren → Experte",
-      "Novize → Erfahren → Fortgeschrittener Anfänger → Kompetent → Experte"
+      "Sozialnorm (Vergleich mit der Gruppe)",
+      "Kriterialnorm (Vergleich mit einem Standard)",
+      "Individualnorm (Vergleich mit früherer eigener Leistung)",
+      "Zufallsnorm (Vergleich mit dem Würfel)"
     ],
-    correctIndex: 0, feedback: "Benners Stufenfolge.", si: 0.61, ti: 0.28
+    correctIndex: 1, feedback: "Kriterialnorm = an Standards/Kriterien orientiert.", si: 0.66, ti: 0.34
   },
   { q: "Prüfungsangst reduzieren: Welche Maßnahme ist nachweislich hilfreich und fair?",
     choices: [
-      "Spontanfragen ohne Kriterien – so sieht man, wer wirklich spontan ist",
+      "Spontanfragen ohne Kriterien – so sieht man, wer spontan ist",
       "Transparente Bewertungskriterien und Beispielaufgaben vorab bereitstellen",
       "Unterschiedliche Aufgaben je Prüfling ohne Abgleich",
-      "Zeitlimit stark verkürzen – dann entscheiden Instinkt und Glück"
+      "Zeitlimit stark verkürzen – dann entscheidet Instinkt"
     ],
-    correctIndex: 1, feedback: "Klarheit über Anforderungen (Transparenz) senkt Unsicherheit und erhöht Fairness.", si: 0.68, ti: 0.33
+    correctIndex: 1, feedback: "Transparenz zu Aufgaben & Kriterien senkt Unsicherheit und erhöht Fairness.", si: 0.68, ti: 0.33
   },
-  { q: "Kurzintervention bei Prüfungsangst im OSCE (10 Min) – was ist am zielführendsten?",
+  { q: "Kurzintervention bei Prüfungsangst direkt vor der Prüfung (5–10 Min) – was ist am zielführendsten?",
     choices: [
-      "5-min Atemfokus + positive Selbstinstruktion",
-      "10-min Theoriewiederholung aller Leitlinien",
+      "Atemfokus + knappe positive Selbstinstruktion",
+      "Alle Leitlinien im Schnelldurchlauf wiederholen",
       "Ignorieren der Symptome",
-      "Medikamentengabe"
+      "Beruhigungsmittel ohne Indikation"
     ],
-    correctIndex: 0, feedback: "Atemfokus/Selbstinstruktion senkt Erregung.", si: 0.58, ti: 0.34
+    correctIndex: 0, feedback: "Atemfokus/Selbstinstruktion senkt Erregung, stabilisiert Leistung.", si: 0.58, ti: 0.34
   },
-  { q: "Nach einem Fehlschlag sagt der Schüler: „Ich bin einfach zu dumm für Prüfungen.“ Welche Antwort hilft am ehesten aus der Hilflosigkeit?",
+  { q: "Nach einem Fehlschlag sagt der Prüfling: „Ich bin einfach zu dumm für Prüfungen.“ Welche Rückmeldung hilft am ehesten heraus?",
     choices: [
-      "„Manche können das eben nie.“",
+      "„Manche können das nie.“",
       "„Das war nur Pech.“",
-      "„Du kannst es lernen: Wir üben gezielt; dein Einsatz macht den Unterschied.“",
+      "„Du kannst es lernen: Wir üben gezielt; dein Einsatz und Strategie machen den Unterschied.“",
       "„Mach dir keine Gedanken, das wird schon irgendwie.“"
     ],
-    correctIndex: 2, feedback: "Fokus auf veränderbare Faktoren (Anstrengung/Strategie) statt stabilem „Unvermögen“. Das verhindert Hilflosigkeit.", si: 0.63, ti: 0.39
+    correctIndex: 2, feedback: "Auf veränderbare Faktoren (Anstrengung/Strategie) lenken statt stabilem „Unvermögen“. ", si: 0.63, ti: 0.39
   },
-  { q: "DSGVO im Praxissetting: Welche Aussage ist korrekt?",
+  { q: "Ergebnisblatt: „78 % erreicht, ab 60 % gilt ‚bestanden‘.“ Welche Bezugsnorm liegt vor?",
     choices: [
-      "Einwilligung ist die einzige Rechtsgrundlage.",
-      "Anonymisierte Fallvignetten sind keine personenbezogenen Daten.",
-      "Teamchats dürfen Patientendaten ungeschützt übertragen.",
-      "Die DSGVO gilt nicht in der Ausbildung."
+      "Sozialnorm",
+      "Kriterialnorm",
+      "Individualnorm",
+      "Keine Bezugsnorm"
     ],
-    correctIndex: 1, feedback: "Anonymisierte Daten sind nicht personenbezogen.", si: 0.66, ti: 0.27
+    correctIndex: 1, feedback: "Vergleich mit einem festen Kriterium/Schwelle = Kriterialnorm.", si: 0.70, ti: 0.31
   },
-  { q: "Lernzielniveau ‚Anwenden‘ (Bloom): Welches Ziel passt am besten?",
+  { q: "OSCE-Station „Stabile Seitenlage“ – welcher Prüfungsauftrag passt zum Anforderungsniveau „Anwenden“?",
     choices: [
-      "Definition von Bewusstlosigkeit wiedergeben",
-      "Stabile Seitenlage in korrekter Reihenfolge durchführen",
-      "Historische Entwicklung erläutern",
+      "Die Definition von Bewusstlosigkeit wiedergeben",
+      "Die stabile Seitenlage in korrekter Reihenfolge durchführen",
+      "Die historische Entwicklung erläutern",
       "Vor- und Nachteile verschiedener Lagerungen diskutieren"
     ],
-    correctIndex: 1, feedback: "‚Anwenden‘ = prozedurale Durchführung.", si: 0.64, ti: 0.33
+    correctIndex: 1, feedback: "„Anwenden“ = prozedurale Durchführung.", si: 0.64, ti: 0.33
   },
   { q: "Feedback nach dem Sandwich-Prinzip – was kommt zuerst?",
     choices: [
-      "Positives/gelungener Aspekt",
+      "Positiver/gelungener Aspekt",
       "Verbesserungspunkt",
       "Zusammenfassung/Abschluss",
       "Begründung, warum etwas schlecht war"
     ],
-    correctIndex: 0, feedback: "Sandwich: Positives → Verbesserung → Positives/Abschluss.", si: 0.74, ti: 0.30
+    correctIndex: 0, feedback: "Sandwich: Positives → Verbesserung → Abschluss.", si: 0.74, ti: 0.30
   },
-  { q: "Esmarch-Handgriff im Training: Was ist unmittelbar richtig?",
+  { q: "Während einer OSCE-Prüfung führt der Prüfling den Esmarch-Handgriff falsch aus. Was ist korrektes Vorgehen als Prüfer:in?",
     choices: [
-      "Fortsetzen lassen – aus Fehlern lernt man am meisten",
-      "Kurz stoppen, Sicherheit herstellen, korrekt demonstrieren und sofort üben lassen",
-      "Abbruch und Abmahnung",
-      "Fehler ignorieren, erst am Ende besprechen"
+      "Sofort detailliert anleiten und jeden Schritt vormachen",
+      "Checkliste weiterführen; nur bei Patientengefährdung sicher abbrechen/eingreifen",
+      "Fehler ignorieren und maximal abwerten",
+      "Keine Rückmeldung, auch nicht nach der Prüfung"
     ],
-    correctIndex: 1, feedback: "Sicherheit + Micro-Teaching.", si: 0.59, ti: 0.38
+    correctIndex: 1, feedback: "Prüfen statt Lehren: standardisiert bewerten; Sicherheit geht vor (Abbruch/Hinweis nur bei Gefahr).", si: 0.57, ti: 0.38
   },
   { q: "Prüfungsangst – welche Aussage trifft zu?",
     choices: [
       "Angst ist ausschließlich leistungshemmend",
-      "Angst kann Gedächtnisprozesse auch aktivieren",
+      "Angst kann kognitive Ressourcen auch aktivieren",
       "Ignorieren lässt Angst am schnellsten verschwinden",
       "Angst zeigt fehlende Eignung"
     ],
-    correctIndex: 1, feedback: "Angst kann auch aktivierend wirken.", si: 0.62, ti: 0.26
+    correctIndex: 1, feedback: "Angst kann auch aktivierend wirken; entscheidend ist die Regulation.", si: 0.62, ti: 0.26
   },
-  { q: "SMARTes Lernziel – welche Formulierung ist am ehesten SMART?",
+  { q: "SMARTes Prüfungsziel – welche Formulierung ist am ehesten SMART?",
     choices: [
       "Schüler soll besser verstehen",
-      "Bis Freitag 3/3 i.v.-Zugänge regelgerecht legen",
+      "Bis Freitag 3/3 i.v.-Zugänge am Skill-Trainer regelgerecht legen",
       "Schüler wird aufmerksamer sein",
       "Notfälle angemessen managen"
     ],
-    correctIndex: 1, feedback: "Spezifisch, messbar, terminiert.", si: 0.67, ti: 0.32
+    correctIndex: 1, feedback: "Spezifisch, messbar, terminiert und überprüfbar.", si: 0.67, ti: 0.32
   },
-  { q: "Objektive Bewertung im OSCE – was sorgt am ehesten für eine faire, vergleichbare Bewertung?",
+  { q: "Für eine faire, vergleichbare Bewertung im OSCE sorgt am ehesten …",
     choices: [
       "Nur ein Freitext-Eindruck ohne Kriterien",
-      "Standardisierte Checkliste mit verhaltensverankerten Skalen (BARS) und zwei Beurteilende",
-      "Alleinurteil des/der Erfahrensten",
-      "Punktvergabe nach Gefühl"
+      "Eine standardisierte Checkliste mit verhaltensverankerten Skalen (BARS) und zwei Beurteilende",
+      "Alleinurteil der erfahrensten Person",
+      "Punkte nach Gefühl"
     ],
-    correctIndex: 1, feedback: "Klare Kriterien + Mehrfachbeurteilung erhöhen Vergleichbarkeit/Reliabilität.", si: 0.57, ti: 0.41
+    correctIndex: 1, feedback: "Kriterien + Mehrfachbeurteilung erhöhen Objektivität/Reliabilität.", si: 0.57, ti: 0.41
   },
-  { q: "Rolle der Praxisanleitung – welche Aussage ist NICHT korrekt?",
+  { q: "Im Feedback sagst du: „Du hast dich seit der letzten Prüfung um zwei Notenstufen verbessert.“ Welche Bezugsnorm nutzt du?",
     choices: [
-      "PAL planen, begleiten und evaluieren Lernprozesse",
-      "PAL fördern Reflexion und strukturiertes Feedback",
-      "PAL legen alleine die Abschlussnote fest",
-      "PAL sichern Patientensicherheit während angeleiteter Maßnahmen"
+      "Sozialnorm",
+      "Kriterialnorm",
+      "Individualnorm",
+      "Keine Bezugsnorm"
     ],
-    correctIndex: 2, feedback: "Notenvergabe ist abgestimmt mit Schule/Trägern.", si: 0.71, ti: 0.24
+    correctIndex: 2, feedback: "Vergleich mit eigener früherer Leistung = Individualnorm.", si: 0.65, ti: 0.35
   },
   { q: "Debriefing nach Simulation – worum geht es in erster Linie?",
     choices: [
@@ -188,16 +188,16 @@ const ITEM_BANK = [
       "Gemeinsam lernen: Eindrücke kurz benennen, Leistung analysieren, klare Take-aways festhalten",
       "Die Übung Wort für Wort nacherzählen"
     ],
-    correctIndex: 2, feedback: "Ziel: Reflexion + Analyse + Lernpunkte, nicht bloß Bewertung oder Nacherzählung.", si: 0.60, ti: 0.36
+    correctIndex: 2, feedback: "Ziel: Reflexion + Analyse + Lernpunkte, nicht bloß Bewertung.", si: 0.60, ti: 0.36
   },
-  { q: "Lehr-Fallvignetten & Datenschutz – was ist richtig?",
+  { q: "Gütekriterien: Was beschreibt „Objektivität“ am besten?",
     choices: [
-      "Kombination seltener Merkmale ist unkritisch",
-      "Vignetten so verändern, dass Re-Identifikation praktisch ausgeschlossen ist",
-      "Teilgesicht-Fotos sind immer anonym",
-      "Ausbildungszweck erlaubt jede Detailtiefe"
+      "Die Prüfung misst, was sie messen soll",
+      "Die Ergebnisse sind unabhängig von der bewertenden Person",
+      "Die Ergebnisse sind bei Wiederholung stabil",
+      "Die Prüfung ist möglichst schwer"
     ],
-    correctIndex: 1, feedback: "Anonymisierung/Pseudonymisierung sorgfältig gestalten.", si: 0.48, ti: 0.35
+    correctIndex: 1, feedback: "Objektivität = Unabhängigkeit vom Beurteilenden; Validität = misst das Richtige; Reliabilität = Zuverlässigkeit.", si: 0.54, ti: 0.40
   }
 ];
 
@@ -272,19 +272,58 @@ function grade(items){
   return { correct, total, percent, passed, perQuestion };
 }
 
+function disableQuiz(){
+  document.querySelectorAll('input[type="radio"]').forEach(inp => inp.disabled = true);
+  document.getElementById("submitBtn").disabled = true;
+}
+
+/* ======= TIMER ======= */
+let remaining = TIME_LIMIT_SECS;
+let timerInt = null;
+let submitted = false;
+let timeUpTriggered = false;
+
+function fmt(t){
+  const m = Math.floor(t/60).toString().padStart(1,'0');
+  const s = (t%60).toString().padStart(2,'0');
+  return `${m}:${s}`;
+}
+
+function startTimer(){
+  const el = document.getElementById("timer");
+  el.textContent = `Zeit: ${fmt(remaining)}`;
+  if(remaining <= 60) el.classList.add("warning");
+  timerInt = setInterval(()=>{
+    remaining--;
+    el.textContent = `Zeit: ${fmt(remaining)}`;
+    if(remaining <= 60) el.classList.add("warning");
+    if(remaining <= 0){
+      clearInterval(timerInt);
+      if(!submitted){
+        timeUpTriggered = true;
+        document.getElementById("submitBtn").click();
+      }
+    }
+  }, 1000);
+}
+
 /* ======= INIT ======= */
 const randomizedItems = shuffle(ITEM_BANK.slice());
 const meta = document.getElementById("meta");
-meta.textContent = `${TEST_TITLE} · ${TEST_DESC} · Bestehensgrenze: ${PASS_THRESHOLD}%`;
+meta.textContent = `${TEST_TITLE} · ${TEST_DESC} · Bestehensgrenze: ${PASS_THRESHOLD}% · Zeitlimit: ${Math.round(TIME_LIMIT_SECS/60)} Min`;
 renderQuiz(randomizedItems, false);
+startTimer();
 
 /* ======= EVENTS ======= */
 document.getElementById("submitBtn").addEventListener("click", ()=>{
+  if(submitted) return;
+  submitted = true;
+  clearInterval(timerInt);
   const { correct, total, percent, passed, perQuestion } = grade(randomizedItems);
   const box = document.getElementById("summary");
   box.classList.remove("hidden","pass","fail");
   box.classList.add("result", passed ? "pass" : "fail");
-  box.textContent = `${percent}% (${correct}/${total}) – ${passed ? "Bestanden ✅" : "Nicht bestanden ❌"}`;
+  box.textContent = `${percent}% (${correct}/${total}) – ${passed ? "Bestanden ✅" : "Nicht bestanden ❌"}` + (timeUpTriggered ? " · Zeit abgelaufen ⏰ – automatische Abgabe" : "");
 
   // Psychometrie-Auswertung (nur für Ersteller – nicht antwortspezifisch)
   const avgSI = perQuestion.reduce((s,q)=>s+q.si,0)/perQuestion.length;
@@ -294,6 +333,8 @@ document.getElementById("submitBtn").addEventListener("click", ()=>{
                       `Empfehlung: SI 0.3–0.8, TI ≥ 0.20 (je nach Einsatz).`;
   stats.classList.remove("hidden");
 
+  disableQuiz();
+  document.getElementById("retryBtn").classList.remove("hidden");
   window.scrollTo({ top: document.body.scrollHeight, behavior:"smooth" });
 });
 

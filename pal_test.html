@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PAL – SI/TI Standardisierter Online-Test (Beispiel)</title>
+  <style>
+    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; max-width: 920px; margin: 40px auto; padding: 0 16px; }
+    h1 { margin-bottom: 0.3rem; }
+    .meta { color: #555; margin-bottom: 1.2rem; }
+    .card { border: 1px solid #e5e5e5; border-radius: 10px; padding: 16px; margin: 16px 0; }
+    .choices label { display:block; margin: 6px 0; cursor: pointer; }
+    button { padding: 10px 16px; border-radius: 8px; border: 1px solid #cfcfcf; cursor: pointer; }
+    .actions { display:flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+    .result { font-weight: 700; padding: 12px; border-radius: 10px; margin-top: 12px; }
+    .pass { background: #e7f7ee; border: 1px solid #a6e0c3; color: #0f5c3a; }
+    .fail { background: #fdecec; border: 1px solid #f3b7b7; color: #8a1c1c; }
+    .muted { color:#666; font-size: 0.95rem; white-space: pre-wrap; }
+    .hidden { display:none; }
+    .footer { margin-top: 28px; font-size: 0.9rem; color:#666;}
+    .tag { font-size:0.8rem; color:#555; background:#f4f4f4; border:1px solid #e7e7e7; border-radius:6px; padding:2px 6px; margin-left:6px;}
+  </style>
+</head>
+<body>
+  <h1>PAL – SI/TI Standardisierter Online-Test</h1>
+  <div class="meta" id="meta"></div>
+
+  <div id="quiz"></div>
+
+  <div class="actions">
+    <button id="submitBtn">Abgeben & Ergebnis anzeigen</button>
+    <button id="retryBtn" class="hidden">Neu starten</button>
+  </div>
+
+  <div id="summary" class="result hidden"></div>
+  <p id="details" class="muted hidden"></p>
+
+  <div class="footer">
+    <p class="muted">Hinweis: Reihenfolge der Fragen/Antworten ist zufällig. Verarbeitung erfolgt lokal im Browser (keine Server-Übertragung).</p>
+  </div>
+
+<script>
+/* ======= KONFIGURATION ======= */
+const TEST_TITLE = "Praxisanleitung im Rettungsdienst – SI/TI";
+const TEST_DESC  = "15 Single-Choice-Fragen · Zeitempfehlung: 12–15 Min";
+const PASS_THRESHOLD = 70; // % für "Bestanden"
+
+/* ======= FRAGENBANK (15 Items) =======
+  Jede Frage trägt (in eckigen Klammern) ein Tag:
+  [SI] = situationsorientiert (Fallvignette), [TI] = theorieintegriert.
+*/
+const ITEM_BANK = [
+  { q: "[SI] Beim i.v.-Zugang verfehlt der Schüler (2. AJ) die Vene, ist sichtlich verunsichert. Du leitest die Versorgung sicher weiter. Welche erste Formulierung eröffnet ein konstruktives Feedbackgespräch am besten?",
+    choices: [
+      "„Warum haben Sie das schon wieder falsch gemacht?“",
+      "„Beschreiben Sie bitte kurz aus Ihrer Sicht den Ablauf – was lief gut, was möchten Sie verbessern?“",
+      "„Das war insgesamt mangelhaft, wir müssen alles neu üben.“",
+      "„Ich erkläre Ihnen jetzt, wie es richtig geht; Fragen später.“"
+    ],
+    correctIndex: 1,
+    feedback: "Selbsteinschätzung vor Fremdeinschätzung (z. B. Pendleton-Struktur) fördert Reflexion und Lernverantwortung."
+  },
+  { q: "[TI] Benner-Modell der Kompetenzentwicklung: Welche Reihenfolge ist korrekt?",
+    choices: [
+      "Novize → Fortgeschrittene Anfänger → Kompetent → Erfahren → Experte",
+      "Novize → Kompetent → Fortgeschrittene Anfänger → Experte → Erfahren",
+      "Fortgeschrittene Anfänger → Novize → Kompetent → Erfahren → Experte",
+      "Novize → Erfahren → Fortgeschrittene Anfänger → Kompetent → Experte"
+    ],
+    correctIndex: 0,
+    feedback: "Benners Stufen: Novize, fortgeschr. Anfänger, kompetent, erfahren, Experte."
+  },
+  { q: "[TI] KMK-Kompetenzbereiche für berufliche Bildung: Welche Option gehört NICHT dazu?",
+    choices: [
+      "Fachkompetenz",
+      "Personale Kompetenz",
+      "Sozialkompetenz",
+      "Räumliche Kompetenz"
+    ],
+    correctIndex: 3,
+    feedback: "KMK fokussiert v. a. Fach-, Personal-, Sozial- und Methodenkompetenz."
+  },
+  { q: "[SI] OSCE in 10 Min: Der Schüler zeigt Zeichen von Prüfungsangst (flache Atmung, Grübeln). Welche kurzfristige Intervention ist am zielführendsten?",
+    choices: [
+      "5-minütige Atemfokussierung + kurze positive Selbstinstruktion",
+      "10 Minuten theoretische Wiederholung aller Leitlinien",
+      "Striktes Ignorieren der Symptome (‚Härtungseffekt‘)",
+      "Sofortige Medikamentengabe gegen Nervosität"
+    ],
+    correctIndex: 0,
+    feedback: "Kurzintervention (Atemfokus/Selbstinstruktion) senkt Erregung und stabilisiert Leistung."
+  },
+  { q: "[TI] Kausalattribuierung: Welche Attribution begünstigt ‚erlernte Hilflosigkeit‘ nach Misserfolg am ehesten?",
+    choices: [
+      "Extern, variabel, kontrollierbar (z. B. Pech)",
+      "Intern, stabil, nicht kontrollierbar (z. B. mangelnde Fähigkeit als unveränderlich)",
+      "Extern, stabil, kontrollierbar",
+      "Intern, variabel, kontrollierbar (z. B. Anstrengung)"
+    ],
+    correctIndex: 1,
+    feedback: "Misserfolg auf stabile, internale, nicht kontrollierbare Ursachen zu schieben fördert Hilflosigkeit."
+  },
+  { q: "[TI] Datenschutz (DSGVO) im Praxissetting: Welche Aussage ist korrekt?",
+    choices: [
+      "Einwilligung ist die einzige Rechtsgrundlage für Datenverarbeitung.",
+      "Anonymisierte Fallvignetten sind keine personenbezogenen Daten.",
+      "Teamchats dürfen patientenbezogene Daten ohne Schutz übertragen.",
+      "Die DSGVO gilt nicht im Ausbildungsrahmen."
+    ],
+    correctIndex: 1,
+    feedback: "Vollständig anonymisierte Daten sind nicht personenbezogen; Einwilligung ist nur eine von mehreren Rechtsgrundlagen."
+  },
+  { q: "[SI] Lernsituation Bewusstlosigkeit: Zielniveau ‚Anwenden‘ (Bloom). Welches Lernziel passt am besten?",
+    choices: [
+      "Die Schülerin kann die Definition von Bewusstlosigkeit wiedergeben.",
+      "Die Schülerin kann die stabile Seitenlage in korrekter Reihenfolge durchführen.",
+      "Die Schülerin kann die historische Entwicklung der Maßnahme erläutern.",
+      "Die Schülerin kann Vor- und Nachteile verschiedener Lagerungen diskutieren."
+    ],
+    correctIndex: 1,
+    feedback: "‚Anwenden‘ = korrekte Durchführung/Prozedur, nicht bloß Reproduktion."
+  },
+  { q: "[TI] Pendleton-Feedback: Was kommt ZUERST?",
+    choices: [
+      "Der Anleitende nennt verbesserungswürdige Aspekte.",
+      "Die Lernende nennt, was gut lief.",
+      "Der Anleitende fasst zusammen und gibt ein Urteil.",
+      "Die Lernende verteidigt sich gegen Kritik."
+    ],
+    correctIndex: 1,
+    feedback: "Start mit Stärken der Lernenden; dann Ergänzung/Verbesserungsvorschläge."
+  },
+  { q: "[SI] Einsatztraining: Beim Esmarch-Handgriff greift der Schüler falsch, der Patient hustet. Bestes unmittelbares Vorgehen?",
+    choices: [
+      "Fortsetzen lassen – aus Fehlern lernt man am meisten.",
+      "Kurz stoppen, Patientensicherheit herstellen, den korrekten Griff demonstrieren und unmittelbar üben lassen.",
+      "Sofort Abbruch und schriftliche Abmahnung.",
+      "Fehler ignorieren und erst am Tagesende besprechen."
+    ],
+    correctIndex: 1,
+    feedback: "Patientensicherheit geht vor; kurzes, situatives Micro-Teaching mit unmittelbarer Übung."
+  },
+  { q: "[TI] Prüfungsangst – was trifft zu?",
+    choices: [
+      "Angst ist ausschließlich leistungshemmend.",
+      "Angst kann über Kortisol Gedächtnisprozesse aktivieren.",
+      "Angst verschwindet durch Ignorieren am schnellsten.",
+      "Angst ist ein Zeichen fehlender Eignung."
+    ],
+    correctIndex: 1,
+    feedback: "Angst hat auch aktivierende Effekte; gezielte Regulation ist sinnvoll."
+  },
+  { q: "[TI] SMARTe Lernziele: Welche Formulierung ist am ehesten SMART?",
+    choices: [
+      "Der Schüler soll das Thema besser verstehen.",
+      "Der Schüler kann bis Freitag 3 von 3 i.v.-Zugänge an der Übungspuppe regelgerecht legen.",
+      "Der Schüler wird künftig aufmerksamer sein.",
+      "Der Schüler soll Notfälle angemessen managen."
+    ],
+    correctIndex: 1,
+    feedback: "Spezifisch, messbar, akzeptiert, realistisch, terminiert."
+  },
+  { q: "[SI] Objektiv bewerten im OSCE: Was reduziert Beurteiler-Bias am ehesten?",
+    choices: [
+      "Freitext-Eindruck ohne Kriterien",
+      "Checkliste mit verhaltensverankerten Skalen (BARS) und zwei Beurteilende",
+      "Alleinurteil des erfahrensten NotSan",
+      "Punktvergabe nach Bauchgefühl"
+    ],
+    correctIndex: 1,
+    feedback: "Standardisierte Kriterien + Mehrfachbeurteilung erhöhen Reliabilität."
+  },
+  { q: "[TI] Rolle der Praxisanleitung – welche Aussage ist NICHT korrekt?",
+    choices: [
+      "PAL planen, begleiten und evaluieren Lernprozesse im Einsatz.",
+      "PAL fördern Reflexion und geben strukturiertes Feedback.",
+      "PAL legen allein und abschließend die Abschlussnote fest – ohne Rücksprache mit der Schule.",
+      "PAL sichern Patientensicherheit während angeleiteten Maßnahmen."
+    ],
+    correctIndex: 2,
+    feedback: "Summative Bewertung ist ein abgestimmter Prozess mit der Schule/Trägern."
+  },
+  { q: "[SI] Debriefing nach Simulation: Welche Reihenfolge ist gute Praxis?",
+    choices: [
+      "Analyse → Reaktion → Zusammenfassung",
+      "Reaktion → Analyse → Zusammenfassung",
+      "Zusammenfassung → Analyse → Reaktion",
+      "Urteil → Analyse → Reaktion"
+    ],
+    correctIndex: 1,
+    feedback: "Erst Reaktionen sammeln, dann Analyse vertiefen, zum Schluss zusammenfassen/Take-aways."
+  },
+  { q: "[TI] Dokumentation & Datenschutz in Lehr-Fallvignetten: Was ist richtig?",
+    choices: [
+      "Kombination seltener Merkmale (Alter + Datum + Ort) ist unkritisch.",
+      "Vignetten müssen so verändert werden, dass eine Re-Identifikation praktisch ausgeschlossen ist.",
+      "Fotos mit Teilgesichtern sind immer anonym.",
+      "Ausbildungszweck erlaubt jede Detailtiefe."
+    ],
+    correctIndex: 1,
+    feedback: "Anonymisierung/Pseudonymisierung sorgfältig gestalten; Re-Identifikation vermeiden."
+  }
+];
+
+/* ======= LOGIK ======= */
+const NUM_QUESTIONS = ITEM_BANK.length;
+
+function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a;}
+function pickRandom(arr,n){ return shuffle(arr).slice(0,n); }
+
+function renderQuiz(items){
+  const container = document.getElementById("quiz");
+  container.innerHTML = "";
+  items.forEach((item, idx) => {
+    const card = document.createElement("div");
+    card.className = "card";
+
+    const h3 = document.createElement("h3");
+    h3.textContent = `Frage ${idx + 1}`;
+    const tag = document.createElement("span");
+    tag.className = "tag";
+    tag.textContent = item.q.startsWith("[SI]") ? "SI" : (item.q.startsWith("[TI]") ? "TI" : "—");
+    h3.appendChild(tag);
+    card.appendChild(h3);
+
+    const p = document.createElement("p");
+    p.textContent = item.q.replace(/^\[(SI|TI)\]\s*/,"");
+    card.appendChild(p);
+
+    const choiceOrder = shuffle(item.choices.map((c,i)=>({c,i})));
+    const div = document.createElement("div");
+    div.className = "choices";
+
+    choiceOrder.forEach(({c,i})=>{
+      const id = `q${idx}_opt${i}`;
+      const label = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = `q${idx}`;
+      input.value = i;
+      input.id = id;
+      label.setAttribute("for", id);
+      label.appendChild(input);
+      label.append(" " + c);
+      div.appendChild(label);
+    });
+
+    card.appendChild(div);
+    container.appendChild(card);
+  });
+}
+
+function grade(items){
+  let correct=0;
+  const perQuestion=[];
+  items.forEach((item, idx)=>{
+    const selected = document.querySelector(`input[name="q${idx}"]:checked`);
+    const selIndex = selected ? parseInt(selected.value,10) : null;
+    const ok = selIndex === item.correctIndex;
+    perQuestion.push({ ok, selIndex, correctIndex:item.correctIndex, feedback:item.feedback||"" });
+    if(ok) correct++;
+  });
+  const total = items.length;
+  const percent = Math.round((correct/total)*100);
+  const passed = percent >= PASS_THRESHOLD;
+  return { correct, total, percent, passed, perQuestion };
+}
+
+/* ======= INIT ======= */
+const randomizedItems = shuffle(pickRandom(ITEM_BANK, NUM_QUESTIONS));
+document.getElementById("meta").textContent = `${TEST_TITLE} · ${TEST_DESC} · Bestehensgrenze: ${PASS_THRESHOLD}%`;
+renderQuiz(randomizedItems);
+
+/* ======= EVENTS ======= */
+document.getElementById("submitBtn").addEventListener("click", ()=>{
+  const { correct, total, percent, passed, perQuestion } = grade(randomizedItems);
+  const box = document.getElementById("summary");
+  const details = document.getElementById("details");
+  box.classList.remove("hidden","pass","fail");
+  box.classList.add("result", passed ? "pass" : "fail");
+  box.textContent = `${percent}% (${correct}/${total}) – ${passed ? "Bestanden ✅" : "Nicht bestanden ❌"}`;
+
+  let text = "";
+  perQuestion.forEach((r,i)=>{
+    const symbol = r.ok ? "✔" : "✖";
+    text += `Frage ${i+1}: ${symbol}`;
+    if(!r.ok) text += ` (korrekt: Antwort ${r.correctIndex+1})`;
+    if(r.feedback) text += ` – ${r.feedback}`;
+    text += "\n";
+  });
+  details.textContent = text.trim();
+  details.classList.remove("hidden");
+  document.getElementById("retryBtn").classList.remove("hidden");
+  window.scrollTo({ top: document.body.scrollHeight, behavior:"smooth" });
+});
+
+document.getElementById("retryBtn").addEventListener("click", ()=>location.reload());
+</script>
+</body>
+</html>

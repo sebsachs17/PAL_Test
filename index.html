@@ -3,212 +3,203 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>PAL – SI/TI Standardisierter Online-Test (Beispiel)</title>
+  <title>PAL – Online-Test mit SI/TI (Schwierigkeitsindex & Trennschärfe)</title>
   <style>
-    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; max-width: 920px; margin: 40px auto; padding: 0 16px; }
-    h1 { margin-bottom: 0.3rem; }
-    .meta { color: #555; margin-bottom: 1.2rem; }
+    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; max-width: 960px; margin: 40px auto; padding: 0 16px; }
+    h1 { margin-bottom: 0.35rem; }
+    .meta { color: #555; margin-bottom: 1rem; }
+    .legend { background:#f7f7f7; border:1px solid #e5e5e5; padding:10px 12px; border-radius:8px; margin-bottom: 14px; }
     .card { border: 1px solid #e5e5e5; border-radius: 10px; padding: 16px; margin: 16px 0; }
     .choices label { display:block; margin: 6px 0; cursor: pointer; }
     button { padding: 10px 16px; border-radius: 8px; border: 1px solid #cfcfcf; cursor: pointer; }
-    .actions { display:flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+    .actions { display:flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; align-items:center; }
     .result { font-weight: 700; padding: 12px; border-radius: 10px; margin-top: 12px; }
     .pass { background: #e7f7ee; border: 1px solid #a6e0c3; color: #0f5c3a; }
     .fail { background: #fdecec; border: 1px solid #f3b7b7; color: #8a1c1c; }
     .muted { color:#666; font-size: 0.95rem; white-space: pre-wrap; }
     .hidden { display:none; }
     .footer { margin-top: 28px; font-size: 0.9rem; color:#666;}
-    .tag { font-size:0.8rem; color:#555; background:#f4f4f4; border:1px solid #e7e7e7; border-radius:6px; padding:2px 6px; margin-left:6px;}
+    .pill { font-size:0.8rem; color:#333; background:#eef5ff; border:1px solid #cfe2ff; border-radius:999px; padding:2px 8px; margin-left:8px; }
+    .pill.bad { background:#fff0f0; border-color:#f1c0c0; }
+    .right { margin-left:auto; }
   </style>
 </head>
 <body>
-  <h1>PAL – SI/TI Standardisierter Online-Test</h1>
+  <h1>PAL – Standardisierter Online-Test</h1>
   <div class="meta" id="meta"></div>
-
-  <div id="quiz"></div>
+  <div class="legend">
+    <strong>Hinweis zu SI/TI (für Ersteller:innen):</strong>
+    <div>SI = <em>Schwierigkeitsindex</em> (p-Wert, Anteil korrekter Antworten: 0 = sehr schwer, 1 = sehr leicht). Zielbereich je nach Einsatz: ca. 0.3–0.8.</div>
+    <div>TI = <em>Trennschärfe</em> (≈ Punkt-Biserial-Korrelation; −1 bis +1). Ziel: möglichst &gt; 0.2, gut ab ≈ 0.3–0.4.</div>
+  </div>
 
   <div class="actions">
     <button id="submitBtn">Abgeben & Ergebnis anzeigen</button>
     <button id="retryBtn" class="hidden">Neu starten</button>
+    <label class="right"><input type="checkbox" id="togglePsych"> SI/TI anzeigen (nur Ersteller)</label>
   </div>
 
   <div id="summary" class="result hidden"></div>
-  <p id="details" class="muted hidden"></p>
+  <p id="psychStats" class="muted hidden"></p>
+
+  <div id="quiz"></div>
 
   <div class="footer">
-    <p class="muted">Hinweis: Reihenfolge der Fragen/Antworten ist zufällig. Verarbeitung erfolgt lokal im Browser (keine Server-Übertragung).</p>
+    <p class="muted">Reihenfolge der Antworten ist zufällig. Verarbeitung erfolgt lokal im Browser.</p>
   </div>
 
 <script>
 /* ======= KONFIGURATION ======= */
-const TEST_TITLE = "Praxisanleitung im Rettungsdienst – SI/TI";
-const TEST_DESC  = "15 Single-Choice-Fragen · Zeitempfehlung: 12–15 Min";
+const TEST_TITLE = "Praxisanleitung im Rettungsdienst – 15 Single-Choice-Fragen";
+const TEST_DESC  = "Zeitempfehlung: 12–15 Min";
 const PASS_THRESHOLD = 70; // % für "Bestanden"
 
-/* ======= FRAGENBANK (15 Items) =======
-  Jede Frage trägt (in eckigen Klammern) ein Tag:
-  [SI] = situationsorientiert (Fallvignette), [TI] = theorieintegriert.
+/* ======= FRAGENBANK (SI/TI enthalten) =======
+  Felder je Item:
+  - q: Frage
+  - choices: Antwortoptionen
+  - correctIndex: Index der korrekten Option
+  - feedback: kurze Erläuterung
+  - si: Schwierigkeitsindex p (0..1)
+  - ti: Trennschärfe (−1..+1; hier ca. 0..0.5 als typische Praxiswerte)
 */
 const ITEM_BANK = [
-  { q: "[SI] Beim i.v.-Zugang verfehlt der Schüler (2. AJ) die Vene, ist sichtlich verunsichert. Du leitest die Versorgung sicher weiter. Welche erste Formulierung eröffnet ein konstruktives Feedbackgespräch am besten?",
+  { q: "Welche erste Formulierung eröffnet ein konstruktives Feedbackgespräch am besten, wenn ein Schüler beim i.v.-Zugang verunsichert ist?",
     choices: [
       "„Warum haben Sie das schon wieder falsch gemacht?“",
       "„Beschreiben Sie bitte kurz aus Ihrer Sicht den Ablauf – was lief gut, was möchten Sie verbessern?“",
       "„Das war insgesamt mangelhaft, wir müssen alles neu üben.“",
       "„Ich erkläre Ihnen jetzt, wie es richtig geht; Fragen später.“"
     ],
-    correctIndex: 1,
-    feedback: "Selbsteinschätzung vor Fremdeinschätzung (z. B. Pendleton-Struktur) fördert Reflexion und Lernverantwortung."
+    correctIndex: 1, feedback: "Selbsteinschätzung vor Fremdeinschätzung (Pendleton).", si: 0.72, ti: 0.36
   },
-  { q: "[TI] Benner-Modell der Kompetenzentwicklung: Welche Reihenfolge ist korrekt?",
+  { q: "Benner-Modell: Welche Reihenfolge ist korrekt?",
     choices: [
-      "Novize → Fortgeschrittene Anfänger → Kompetent → Erfahren → Experte",
-      "Novize → Kompetent → Fortgeschrittene Anfänger → Experte → Erfahren",
-      "Fortgeschrittene Anfänger → Novize → Kompetent → Erfahren → Experte",
-      "Novize → Erfahren → Fortgeschrittene Anfänger → Kompetent → Experte"
+      "Novize → Fortgeschrittener Anfänger → Kompetent → Erfahren → Experte",
+      "Novize → Kompetent → Fortgeschrittener Anfänger → Experte → Erfahren",
+      "Fortgeschrittener Anfänger → Novize → Kompetent → Erfahren → Experte",
+      "Novize → Erfahren → Fortgeschrittener Anfänger → Kompetent → Experte"
     ],
-    correctIndex: 0,
-    feedback: "Benners Stufen: Novize, fortgeschr. Anfänger, kompetent, erfahren, Experte."
+    correctIndex: 0, feedback: "Benners Stufenfolge.", si: 0.61, ti: 0.28
   },
-  { q: "[TI] KMK-Kompetenzbereiche für berufliche Bildung: Welche Option gehört NICHT dazu?",
+  { q: "KMK-Kompetenzen: Welche Option gehört NICHT dazu?",
+    choices: ["Fachkompetenz","Personale Kompetenz","Sozialkompetenz","Räumliche Kompetenz"],
+    correctIndex: 3, feedback: "KMK: Fach-, Personal-, Sozial-, Methodenkompetenz.", si: 0.69, ti: 0.31
+  },
+  { q: "Kurzintervention bei Prüfungsangst im OSCE (10 Min) – was ist am zielführendsten?",
     choices: [
-      "Fachkompetenz",
-      "Personale Kompetenz",
-      "Sozialkompetenz",
-      "Räumliche Kompetenz"
+      "5-min Atemfokus + positive Selbstinstruktion",
+      "10-min Theoriewiederholung aller Leitlinien",
+      "Ignorieren der Symptome",
+      "Medikamentengabe"
     ],
-    correctIndex: 3,
-    feedback: "KMK fokussiert v. a. Fach-, Personal-, Sozial- und Methodenkompetenz."
+    correctIndex: 0, feedback: "Atemfokus/Selbstinstruktion senkt Erregung.", si: 0.58, ti: 0.34
   },
-  { q: "[SI] OSCE in 10 Min: Der Schüler zeigt Zeichen von Prüfungsangst (flache Atmung, Grübeln). Welche kurzfristige Intervention ist am zielführendsten?",
+  { q: "Kausalattribuierung: Welche Attribution begünstigt erlernte Hilflosigkeit nach Misserfolg am ehesten?",
     choices: [
-      "5-minütige Atemfokussierung + kurze positive Selbstinstruktion",
-      "10 Minuten theoretische Wiederholung aller Leitlinien",
-      "Striktes Ignorieren der Symptome (‚Härtungseffekt‘)",
-      "Sofortige Medikamentengabe gegen Nervosität"
-    ],
-    correctIndex: 0,
-    feedback: "Kurzintervention (Atemfokus/Selbstinstruktion) senkt Erregung und stabilisiert Leistung."
-  },
-  { q: "[TI] Kausalattribuierung: Welche Attribution begünstigt ‚erlernte Hilflosigkeit‘ nach Misserfolg am ehesten?",
-    choices: [
-      "Extern, variabel, kontrollierbar (z. B. Pech)",
-      "Intern, stabil, nicht kontrollierbar (z. B. mangelnde Fähigkeit als unveränderlich)",
+      "Extern, variabel, kontrollierbar",
+      "Intern, stabil, nicht kontrollierbar",
       "Extern, stabil, kontrollierbar",
-      "Intern, variabel, kontrollierbar (z. B. Anstrengung)"
+      "Intern, variabel, kontrollierbar"
     ],
-    correctIndex: 1,
-    feedback: "Misserfolg auf stabile, internale, nicht kontrollierbare Ursachen zu schieben fördert Hilflosigkeit."
+    correctIndex: 1, feedback: "Intern-stabil-unkontrollierbar = Risiko für Hilflosigkeit.", si: 0.47, ti: 0.40
   },
-  { q: "[TI] Datenschutz (DSGVO) im Praxissetting: Welche Aussage ist korrekt?",
+  { q: "DSGVO im Praxissetting: Welche Aussage ist korrekt?",
     choices: [
-      "Einwilligung ist die einzige Rechtsgrundlage für Datenverarbeitung.",
+      "Einwilligung ist die einzige Rechtsgrundlage.",
       "Anonymisierte Fallvignetten sind keine personenbezogenen Daten.",
-      "Teamchats dürfen patientenbezogene Daten ohne Schutz übertragen.",
-      "Die DSGVO gilt nicht im Ausbildungsrahmen."
+      "Teamchats dürfen Patientendaten ungeschützt übertragen.",
+      "Die DSGVO gilt nicht in der Ausbildung."
     ],
-    correctIndex: 1,
-    feedback: "Vollständig anonymisierte Daten sind nicht personenbezogen; Einwilligung ist nur eine von mehreren Rechtsgrundlagen."
+    correctIndex: 1, feedback: "Anonymisierte Daten sind nicht personenbezogen.", si: 0.66, ti: 0.27
   },
-  { q: "[SI] Lernsituation Bewusstlosigkeit: Zielniveau ‚Anwenden‘ (Bloom). Welches Lernziel passt am besten?",
+  { q: "Lernzielniveau ‚Anwenden‘ (Bloom): Welches Ziel passt am besten?",
     choices: [
-      "Die Schülerin kann die Definition von Bewusstlosigkeit wiedergeben.",
-      "Die Schülerin kann die stabile Seitenlage in korrekter Reihenfolge durchführen.",
-      "Die Schülerin kann die historische Entwicklung der Maßnahme erläutern.",
-      "Die Schülerin kann Vor- und Nachteile verschiedener Lagerungen diskutieren."
+      "Definition von Bewusstlosigkeit wiedergeben",
+      "Stabile Seitenlage in korrekter Reihenfolge durchführen",
+      "Historische Entwicklung erläutern",
+      "Vor- und Nachteile verschiedener Lagerungen diskutieren"
     ],
-    correctIndex: 1,
-    feedback: "‚Anwenden‘ = korrekte Durchführung/Prozedur, nicht bloß Reproduktion."
+    correctIndex: 1, feedback: "‚Anwenden‘ = prozedurale Durchführung.", si: 0.64, ti: 0.33
   },
-  { q: "[TI] Pendleton-Feedback: Was kommt ZUERST?",
+  { q: "Pendleton-Feedback: Was kommt zuerst?",
     choices: [
-      "Der Anleitende nennt verbesserungswürdige Aspekte.",
-      "Die Lernende nennt, was gut lief.",
-      "Der Anleitende fasst zusammen und gibt ein Urteil.",
-      "Die Lernende verteidigt sich gegen Kritik."
+      "Anleitende nennen Verbesserungen",
+      "Lernende nennen, was gut lief",
+      "Anleitende geben Urteil",
+      "Lernende verteidigen sich"
     ],
-    correctIndex: 1,
-    feedback: "Start mit Stärken der Lernenden; dann Ergänzung/Verbesserungsvorschläge."
+    correctIndex: 1, feedback: "Start mit Stärken der Lernenden.", si: 0.73, ti: 0.29
   },
-  { q: "[SI] Einsatztraining: Beim Esmarch-Handgriff greift der Schüler falsch, der Patient hustet. Bestes unmittelbares Vorgehen?",
+  { q: "Esmarch-Handgriff im Training: Was ist unmittelbar richtig?",
     choices: [
-      "Fortsetzen lassen – aus Fehlern lernt man am meisten.",
-      "Kurz stoppen, Patientensicherheit herstellen, den korrekten Griff demonstrieren und unmittelbar üben lassen.",
-      "Sofort Abbruch und schriftliche Abmahnung.",
-      "Fehler ignorieren und erst am Tagesende besprechen."
+      "Fortsetzen lassen – aus Fehlern lernt man am meisten",
+      "Kurz stoppen, Sicherheit herstellen, korrekt demonstrieren und sofort üben lassen",
+      "Abbruch und Abmahnung",
+      "Fehler ignorieren, erst am Ende besprechen"
     ],
-    correctIndex: 1,
-    feedback: "Patientensicherheit geht vor; kurzes, situatives Micro-Teaching mit unmittelbarer Übung."
+    correctIndex: 1, feedback: "Sicherheit + Micro-Teaching.", si: 0.59, ti: 0.38
   },
-  { q: "[TI] Prüfungsangst – was trifft zu?",
+  { q: "Prüfungsangst – welche Aussage trifft zu?",
     choices: [
-      "Angst ist ausschließlich leistungshemmend.",
-      "Angst kann über Kortisol Gedächtnisprozesse aktivieren.",
-      "Angst verschwindet durch Ignorieren am schnellsten.",
-      "Angst ist ein Zeichen fehlender Eignung."
+      "Angst ist ausschließlich leistungshemmend",
+      "Angst kann Gedächtnisprozesse auch aktivieren",
+      "Ignorieren lässt Angst am schnellsten verschwinden",
+      "Angst zeigt fehlende Eignung"
     ],
-    correctIndex: 1,
-    feedback: "Angst hat auch aktivierende Effekte; gezielte Regulation ist sinnvoll."
+    correctIndex: 1, feedback: "Angst kann auch aktivierend wirken.", si: 0.62, ti: 0.26
   },
-  { q: "[TI] SMARTe Lernziele: Welche Formulierung ist am ehesten SMART?",
+  { q: "SMARTes Lernziel – welche Formulierung ist am ehesten SMART?",
     choices: [
-      "Der Schüler soll das Thema besser verstehen.",
-      "Der Schüler kann bis Freitag 3 von 3 i.v.-Zugänge an der Übungspuppe regelgerecht legen.",
-      "Der Schüler wird künftig aufmerksamer sein.",
-      "Der Schüler soll Notfälle angemessen managen."
+      "Schüler soll besser verstehen",
+      "Bis Freitag 3/3 i.v.-Zugänge regelgerecht legen",
+      "Schüler wird aufmerksamer sein",
+      "Notfälle angemessen managen"
     ],
-    correctIndex: 1,
-    feedback: "Spezifisch, messbar, akzeptiert, realistisch, terminiert."
+    correctIndex: 1, feedback: "Spezifisch, messbar, terminiert.", si: 0.67, ti: 0.32
   },
-  { q: "[SI] Objektiv bewerten im OSCE: Was reduziert Beurteiler-Bias am ehesten?",
+  { q: "Objektive Bewertung im OSCE – was reduziert Bias am ehesten?",
     choices: [
-      "Freitext-Eindruck ohne Kriterien",
-      "Checkliste mit verhaltensverankerten Skalen (BARS) und zwei Beurteilende",
-      "Alleinurteil des erfahrensten NotSan",
-      "Punktvergabe nach Bauchgefühl"
+      "Freitext ohne Kriterien",
+      "Checkliste mit BARS + zwei Beurteilende",
+      "Alleinurteil des Erfahrensten",
+      "Bauchgefühl"
     ],
-    correctIndex: 1,
-    feedback: "Standardisierte Kriterien + Mehrfachbeurteilung erhöhen Reliabilität."
+    correctIndex: 1, feedback: "Kriterien + Mehrfachbeurteilung.", si: 0.55, ti: 0.41
   },
-  { q: "[TI] Rolle der Praxisanleitung – welche Aussage ist NICHT korrekt?",
+  { q: "Rolle der Praxisanleitung – welche Aussage ist NICHT korrekt?",
     choices: [
-      "PAL planen, begleiten und evaluieren Lernprozesse im Einsatz.",
-      "PAL fördern Reflexion und geben strukturiertes Feedback.",
-      "PAL legen allein und abschließend die Abschlussnote fest – ohne Rücksprache mit der Schule.",
-      "PAL sichern Patientensicherheit während angeleiteten Maßnahmen."
+      "PAL planen, begleiten und evaluieren Lernprozesse",
+      "PAL fördern Reflexion und strukturiertes Feedback",
+      "PAL legen alleine die Abschlussnote fest",
+      "PAL sichern Patientensicherheit während angeleiteter Maßnahmen"
     ],
-    correctIndex: 2,
-    feedback: "Summative Bewertung ist ein abgestimmter Prozess mit der Schule/Trägern."
+    correctIndex: 2, feedback: "Notenvergabe ist abgestimmt mit Schule/Trägern.", si: 0.71, ti: 0.24
   },
-  { q: "[SI] Debriefing nach Simulation: Welche Reihenfolge ist gute Praxis?",
+  { q: "Debriefing nach Simulation – sinnvolle Reihenfolge?",
     choices: [
       "Analyse → Reaktion → Zusammenfassung",
       "Reaktion → Analyse → Zusammenfassung",
       "Zusammenfassung → Analyse → Reaktion",
       "Urteil → Analyse → Reaktion"
     ],
-    correctIndex: 1,
-    feedback: "Erst Reaktionen sammeln, dann Analyse vertiefen, zum Schluss zusammenfassen/Take-aways."
+    correctIndex: 1, feedback: "Erst Reaktionen, dann Analyse, dann Take-aways.", si: 0.52, ti: 0.37
   },
-  { q: "[TI] Dokumentation & Datenschutz in Lehr-Fallvignetten: Was ist richtig?",
+  { q: "Lehr-Fallvignetten & Datenschutz – was ist richtig?",
     choices: [
-      "Kombination seltener Merkmale (Alter + Datum + Ort) ist unkritisch.",
-      "Vignetten müssen so verändert werden, dass eine Re-Identifikation praktisch ausgeschlossen ist.",
-      "Fotos mit Teilgesichtern sind immer anonym.",
-      "Ausbildungszweck erlaubt jede Detailtiefe."
+      "Kombination seltener Merkmale ist unkritisch",
+      "Vignetten so verändern, dass Re-Identifikation praktisch ausgeschlossen ist",
+      "Teilgesicht-Fotos sind immer anonym",
+      "Ausbildungszweck erlaubt jede Detailtiefe"
     ],
-    correctIndex: 1,
-    feedback: "Anonymisierung/Pseudonymisierung sorgfältig gestalten; Re-Identifikation vermeiden."
+    correctIndex: 1, feedback: "Anonymisierung/Pseudonymisierung sorgfältig gestalten.", si: 0.48, ti: 0.35
   }
 ];
 
 /* ======= LOGIK ======= */
-const NUM_QUESTIONS = ITEM_BANK.length;
+function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
 
-function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a;}
-function pickRandom(arr,n){ return shuffle(arr).slice(0,n); }
-
-function renderQuiz(items){
+function renderQuiz(items, showPsych=false){
   const container = document.getElementById("quiz");
   container.innerHTML = "";
   items.forEach((item, idx) => {
@@ -217,14 +208,24 @@ function renderQuiz(items){
 
     const h3 = document.createElement("h3");
     h3.textContent = `Frage ${idx + 1}`;
-    const tag = document.createElement("span");
-    tag.className = "tag";
-    tag.textContent = item.q.startsWith("[SI]") ? "SI" : (item.q.startsWith("[TI]") ? "TI" : "—");
-    h3.appendChild(tag);
+
+    // SI/TI Pills (designer only)
+    const pillSI = document.createElement("span");
+    pillSI.className = "pill" + ((item.si<0.3 || item.si>0.85) ? " bad" : "");
+    pillSI.textContent = `SI: ${item.si.toFixed(2)}`;
+
+    const pillTI = document.createElement("span");
+    pillTI.className = "pill" + ((item.ti<0.2) ? " bad" : "");
+    pillTI.textContent = `TI: ${item.ti.toFixed(2)}`;
+
+    if(showPsych){
+      h3.appendChild(pillSI);
+      h3.appendChild(pillTI);
+    }
     card.appendChild(h3);
 
     const p = document.createElement("p");
-    p.textContent = item.q.replace(/^\[(SI|TI)\]\s*/,"");
+    p.textContent = item.q;
     card.appendChild(p);
 
     const choiceOrder = shuffle(item.choices.map((c,i)=>({c,i})));
@@ -257,7 +258,7 @@ function grade(items){
     const selected = document.querySelector(`input[name="q${idx}"]:checked`);
     const selIndex = selected ? parseInt(selected.value,10) : null;
     const ok = selIndex === item.correctIndex;
-    perQuestion.push({ ok, selIndex, correctIndex:item.correctIndex, feedback:item.feedback||"" });
+    perQuestion.push({ ok, selIndex, correctIndex:item.correctIndex, feedback:item.feedback||"", si:item.si, ti:item.ti });
     if(ok) correct++;
   });
   const total = items.length;
@@ -267,34 +268,36 @@ function grade(items){
 }
 
 /* ======= INIT ======= */
-const randomizedItems = shuffle(pickRandom(ITEM_BANK, NUM_QUESTIONS));
-document.getElementById("meta").textContent = `${TEST_TITLE} · ${TEST_DESC} · Bestehensgrenze: ${PASS_THRESHOLD}%`;
-renderQuiz(randomizedItems);
+const randomizedItems = shuffle(ITEM_BANK.slice());
+const meta = document.getElementById("meta");
+meta.textContent = `${TEST_TITLE} · ${TEST_DESC} · Bestehensgrenze: ${PASS_THRESHOLD}%`;
+renderQuiz(randomizedItems, false);
 
 /* ======= EVENTS ======= */
 document.getElementById("submitBtn").addEventListener("click", ()=>{
   const { correct, total, percent, passed, perQuestion } = grade(randomizedItems);
   const box = document.getElementById("summary");
-  const details = document.getElementById("details");
   box.classList.remove("hidden","pass","fail");
   box.classList.add("result", passed ? "pass" : "fail");
   box.textContent = `${percent}% (${correct}/${total}) – ${passed ? "Bestanden ✅" : "Nicht bestanden ❌"}`;
 
-  let text = "";
-  perQuestion.forEach((r,i)=>{
-    const symbol = r.ok ? "✔" : "✖";
-    text += `Frage ${i+1}: ${symbol}`;
-    if(!r.ok) text += ` (korrekt: Antwort ${r.correctIndex+1})`;
-    if(r.feedback) text += ` – ${r.feedback}`;
-    text += "\n";
-  });
-  details.textContent = text.trim();
-  details.classList.remove("hidden");
-  document.getElementById("retryBtn").classList.remove("hidden");
+  // Psychometrie-Auswertung (nur für Ersteller – nicht antwortspezifisch)
+  const avgSI = perQuestion.reduce((s,q)=>s+q.si,0)/perQuestion.length;
+  const avgTI = perQuestion.reduce((s,q)=>s+q.ti,0)/perQuestion.length;
+  const stats = document.getElementById("psychStats");
+  stats.textContent = `Mittelwerte (Items): SI ≈ ${avgSI.toFixed(2)}, TI ≈ ${avgTI.toFixed(2)}. ` +
+                      `Empfehlung: SI 0.3–0.8, TI ≥ 0.20 (je nach Einsatz).`;
+  stats.classList.remove("hidden");
+
   window.scrollTo({ top: document.body.scrollHeight, behavior:"smooth" });
 });
 
 document.getElementById("retryBtn").addEventListener("click", ()=>location.reload());
+
+document.getElementById("togglePsych").addEventListener("change", (e)=>{
+  const show = e.target.checked;
+  renderQuiz(randomizedItems, show);
+});
 </script>
 </body>
 </html>

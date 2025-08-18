@@ -71,7 +71,7 @@ const ITEM_BANK = [
       "„Das war insgesamt mangelhaft, wir müssen alles neu üben.“",
       "„Ich erkläre Ihnen jetzt, wie es richtig geht; Fragen später.“"
     ],
-    correctIndex: 1, feedback: "Selbsteinschätzung vor Fremdeinschätzung (Pendleton).", si: 0.72, ti: 0.36
+    correctIndex: 1, feedback: "Selbsteinschätzung vor Fremdeinschätzung (Sandwich/Pendleton-ähnlich).", si: 0.72, ti: 0.36
   },
   { q: "Benner-Modell: Welche Reihenfolge ist korrekt?",
     choices: [
@@ -82,9 +82,14 @@ const ITEM_BANK = [
     ],
     correctIndex: 0, feedback: "Benners Stufenfolge.", si: 0.61, ti: 0.28
   },
-  { q: "KMK-Kompetenzen: Welche Option gehört NICHT dazu?",
-    choices: ["Fachkompetenz","Personale Kompetenz","Sozialkompetenz","Räumliche Kompetenz"],
-    correctIndex: 3, feedback: "KMK: Fach-, Personal-, Sozial-, Methodenkompetenz.", si: 0.69, ti: 0.31
+  { q: "Prüfungsangst reduzieren: Welche Maßnahme ist nachweislich hilfreich und fair?",
+    choices: [
+      "Spontanfragen ohne Kriterien – so sieht man, wer wirklich spontan ist",
+      "Transparente Bewertungskriterien und Beispielaufgaben vorab bereitstellen",
+      "Unterschiedliche Aufgaben je Prüfling ohne Abgleich",
+      "Zeitlimit stark verkürzen – dann entscheiden Instinkt und Glück"
+    ],
+    correctIndex: 1, feedback: "Klarheit über Anforderungen (Transparenz) senkt Unsicherheit und erhöht Fairness.", si: 0.68, ti: 0.33
   },
   { q: "Kurzintervention bei Prüfungsangst im OSCE (10 Min) – was ist am zielführendsten?",
     choices: [
@@ -95,14 +100,14 @@ const ITEM_BANK = [
     ],
     correctIndex: 0, feedback: "Atemfokus/Selbstinstruktion senkt Erregung.", si: 0.58, ti: 0.34
   },
-  { q: "Kausalattribuierung: Welche Attribution begünstigt erlernte Hilflosigkeit nach Misserfolg am ehesten?",
+  { q: "Nach einem Fehlschlag sagt der Schüler: „Ich bin einfach zu dumm für Prüfungen.“ Welche Antwort hilft am ehesten aus der Hilflosigkeit?",
     choices: [
-      "Extern, variabel, kontrollierbar",
-      "Intern, stabil, nicht kontrollierbar",
-      "Extern, stabil, kontrollierbar",
-      "Intern, variabel, kontrollierbar"
+      "„Manche können das eben nie.“",
+      "„Das war nur Pech.“",
+      "„Du kannst es lernen: Wir üben gezielt; dein Einsatz macht den Unterschied.“",
+      "„Mach dir keine Gedanken, das wird schon irgendwie.“"
     ],
-    correctIndex: 1, feedback: "Intern-stabil-unkontrollierbar = Risiko für Hilflosigkeit.", si: 0.47, ti: 0.40
+    correctIndex: 2, feedback: "Fokus auf veränderbare Faktoren (Anstrengung/Strategie) statt stabilem „Unvermögen“. Das verhindert Hilflosigkeit.", si: 0.63, ti: 0.39
   },
   { q: "DSGVO im Praxissetting: Welche Aussage ist korrekt?",
     choices: [
@@ -122,14 +127,14 @@ const ITEM_BANK = [
     ],
     correctIndex: 1, feedback: "‚Anwenden‘ = prozedurale Durchführung.", si: 0.64, ti: 0.33
   },
-  { q: "Pendleton-Feedback: Was kommt zuerst?",
+  { q: "Feedback nach dem Sandwich-Prinzip – was kommt zuerst?",
     choices: [
-      "Anleitende nennen Verbesserungen",
-      "Lernende nennen, was gut lief",
-      "Anleitende geben Urteil",
-      "Lernende verteidigen sich"
+      "Positives/gelungener Aspekt",
+      "Verbesserungspunkt",
+      "Zusammenfassung/Abschluss",
+      "Begründung, warum etwas schlecht war"
     ],
-    correctIndex: 1, feedback: "Start mit Stärken der Lernenden.", si: 0.73, ti: 0.29
+    correctIndex: 0, feedback: "Sandwich: Positives → Verbesserung → Positives/Abschluss.", si: 0.74, ti: 0.30
   },
   { q: "Esmarch-Handgriff im Training: Was ist unmittelbar richtig?",
     choices: [
@@ -158,14 +163,14 @@ const ITEM_BANK = [
     ],
     correctIndex: 1, feedback: "Spezifisch, messbar, terminiert.", si: 0.67, ti: 0.32
   },
-  { q: "Objektive Bewertung im OSCE – was reduziert Bias am ehesten?",
+  { q: "Objektive Bewertung im OSCE – was sorgt am ehesten für eine faire, vergleichbare Bewertung?",
     choices: [
-      "Freitext ohne Kriterien",
-      "Checkliste mit BARS + zwei Beurteilende",
-      "Alleinurteil des Erfahrensten",
-      "Bauchgefühl"
+      "Nur ein Freitext-Eindruck ohne Kriterien",
+      "Standardisierte Checkliste mit verhaltensverankerten Skalen (BARS) und zwei Beurteilende",
+      "Alleinurteil des/der Erfahrensten",
+      "Punktvergabe nach Gefühl"
     ],
-    correctIndex: 1, feedback: "Kriterien + Mehrfachbeurteilung.", si: 0.55, ti: 0.41
+    correctIndex: 1, feedback: "Klare Kriterien + Mehrfachbeurteilung erhöhen Vergleichbarkeit/Reliabilität.", si: 0.57, ti: 0.41
   },
   { q: "Rolle der Praxisanleitung – welche Aussage ist NICHT korrekt?",
     choices: [
@@ -176,14 +181,14 @@ const ITEM_BANK = [
     ],
     correctIndex: 2, feedback: "Notenvergabe ist abgestimmt mit Schule/Trägern.", si: 0.71, ti: 0.24
   },
-  { q: "Debriefing nach Simulation – sinnvolle Reihenfolge?",
+  { q: "Debriefing nach Simulation – worum geht es in erster Linie?",
     choices: [
-      "Analyse → Reaktion → Zusammenfassung",
-      "Reaktion → Analyse → Zusammenfassung",
-      "Zusammenfassung → Analyse → Reaktion",
-      "Urteil → Analyse → Reaktion"
+      "Nur eine Fehlerliste erstellen",
+      "Die Note mitteilen",
+      "Gemeinsam lernen: Eindrücke kurz benennen, Leistung analysieren, klare Take-aways festhalten",
+      "Die Übung Wort für Wort nacherzählen"
     ],
-    correctIndex: 1, feedback: "Erst Reaktionen, dann Analyse, dann Take-aways.", si: 0.52, ti: 0.37
+    correctIndex: 2, feedback: "Ziel: Reflexion + Analyse + Lernpunkte, nicht bloß Bewertung oder Nacherzählung.", si: 0.60, ti: 0.36
   },
   { q: "Lehr-Fallvignetten & Datenschutz – was ist richtig?",
     choices: [

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Übungstest – Medizinische Fallszenarien (NotSan) – Rotierender Pool</title>
+<style>
+  :root { --sidebar-w: 300px; }
+  body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; margin:0; color:#111; background:#fff; }
+  header { max-width: 1100px; margin: 28px auto 10px; padding: 0 16px; }
+  h1 { margin: 0 0 6px 0; font-weight: 800; letter-spacing:.2px; }
+  .meta,.muted { color:#555; }
+  .layout { max-width: 1100px; margin: 0 auto; padding: 0 16px 36px; display:grid; grid-template-columns: 1fr var(--sidebar-w); gap:18px; align-items:start; }
+  main { min-width: 0; }
+  aside.sidebar { position: sticky; top: 12px; align-self: start; }
+  .sidecard { border:1px solid #e5e5e5; border-radius: 12px; padding:14px; background:#fff; box-shadow:0 6px 18px rgba(0,0,0,.04); }
+  .sidecard + .sidecard { margin-top: 12px; }
+  .timer { font-weight: 800; padding: 8px 12px; border-radius: 8px; border:1px solid #e5e5e5; display:inline-block; }
+  .timer.warning { color:#8a1c1c; border-color:#f3b7b7; background:#fdecec; }
+  .bar { height: 8px; border-radius: 999px; background:#eee; overflow:hidden; }
+  .bar > span { display:block; height:100%; width:0%; background:#7aa2ff; transition: width .25s ease; }
+  .grid { display:grid; grid-template-columns: 1fr auto; gap:8px 12px; align-items:center; }
+  .grid .label { color:#555; }
+  button { padding:10px 14px; border-radius:10px; border:1px solid #cfcfcf; background:#fff; cursor:pointer; }
+  button.primary { border-color:#6d93ff; }
+  button[disabled]{ opacity:.6; cursor:not-allowed; }
+  .actions { display:flex; gap:12px; margin: 12px 0 6px; flex-wrap:wrap; align-items:center; }
+  .hidden { display:none; }
+  .card { border:1px solid #e5e5e5; border-radius:10px; padding:16px; margin:16px 0; background:#fff; transition: box-shadow .2s ease, border-color .2s ease; }
+  .choices label { display:block; margin:6px 0; cursor:pointer; }
+  .context { color:#333; margin:0 0 8px 0; }
+  .note { font-size: .92rem; color:#555; }
+  .result { font-weight:700; padding:12px; border-radius:10px; margin-top:12px; }
+  .grade1 { background:#e7f7ee; border:1px solid #a6e0c3; color:#0f5c3a; }
+  .grade2 { background:#e8f3ff; border:1px solid #b6d6ff; color:#0b4a8b; }
+  .grade3 { background:#fff7e6; border:1px solid #ffdd99; color:#8a5a00; }
+  .grade5 { background:#fdecec; border:1px solid #f3b7b7; color:#8a1c1c; }
+  .missing { border-color:#f3b7b7; box-shadow:0 0 0 3px rgba(243,183,183,.45); }
+  .tag { display:inline-block; font-size:.8rem; padding:.15rem .45rem; border-radius:6px; background:#f2f5ff; border:1px solid #dbe3ff; color:#304d9b; margin-left:8px; }
+  @media (max-width: 880px){ :root{--sidebar-w:100%} .layout{grid-template-columns:1fr} aside.sidebar{position:static} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Übungstest – Medizinische Fallszenarien (NotSan) <span class="tag" id="tagCount"></span></h1>
+  <div class="meta">Rotierender Fragenpool mit begrenzten Negationen (mind. 1, max. 3 je Test). Abgabe erst nach vollständiger Beantwortung.</div>
+  <div class="muted">© 2025 Sebastian Sachs – Urheberrechte an Formulierungen & Zusammenstellung. Verarbeitung lokal im Browser.</div>
+  <p class="note"><strong>Hinweis:</strong> Dieser Test dient der Übung und orientiert sich an gängigen Leitlinien (z. B. ERC 2021/2022, Stroke- und Diabetes-Notfallversorgung). Er ersetzt keine Leitlinienlektüre.</p>
+</header>
+
+<div class="layout">
+  <main>
+    <div class="sidecard" id="gateBox">
+      <strong>Start</strong>
+      <div class="actions">
+        <label for="pid">Teilnehmercode (4–12 Zeichen):</label>
+        <input id="pid" type="text" maxlength="30" />
+      </div>
+      <div class="actions">
+        <label for="access">Zugangscode:</label>
+        <input id="access" type="password" placeholder="notsan2025" />
+      </div>
+      <div class="actions">
+        <button id="startBtn" class="primary">Test starten</button>
+        <span id="gateMsg" class="note"></span>
+      </div>
+    </div>
+
+    <div class="actions hidden" id="actionBar">
+      <button id="submitBtn" disabled>Abgeben & Ergebnis anzeigen</button>
+      <button id="retryBtn" class="hidden">Neu starten</button>
+      <span id="incompleteMsg" class="note hidden">Bitte alle Fragen beantworten.</span>
+      <span id="timeMsg" class="note hidden"></span>
+    </div>
+
+    <div id="summary" class="result hidden"></div>
+    <div id="exam" class="hidden"></div>
+
+    <div class="note">Nach Abgabe werden richtige Lösungen und kurze Begründungen eingeblendet.</div>
+  </main>
+
+  <aside class="sidebar">
+    <div class="sidecard">
+      <div id="timerSide" class="timer">Zeit: 5:00</div>
+      <div class="grid" style="margin-top:10px">
+        <div class="label">Bearbeitet</div><div><strong><span id="answeredCount">0</span>/<span id="totalCount">0</span></strong></div>
+        <div class="label">Fortschritt</div><div class="bar"><span id="progressBar"></span></div>
+      </div>
+      <div class="actions" style="margin-top:10px">
+        <button id="submitBtnSide" class="primary" disabled>Abgeben</button>
+      </div>
+    </div>
+    <div class="sidecard">
+      <div class="note">
+        Bestehensgrenze: <strong>60 %</strong><br>
+        Zeitlimit: <strong>5 Min</strong><br>
+        Fragen in dieser Runde: <strong id="roundCount">—</strong><br>
+        Negationen in dieser Runde: <strong id="roundNeg">—</strong><br>
+        Pool gesamt: <strong id="poolSize">—</strong>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+/* === Konfig === */
+const ACCESS_CODE = "notsan2025";
+const PASS_THRESHOLD = 60;
+const TIME_LIMIT_SECS = 5 * 60;
+/* Gesamtfragenzahl rotiert je Start: 12–18 */
+const MIN_Q = 12, MAX_Q = 18;
+/* Negationen pro Runde begrenzen */
+const MIN_NEG = 1, MAX_NEG = 3;
+
+/* === Fragenpool (leitlinien-orientiert; SC/MC gemischt; einige Negationen) ===
+   Felder:
+   - id, type: "sc"|"mc"
+   - context: kurzer Fallsatz (Trauma / Diabetes / allgemein)
+   - q: Frage
+   - choices: Antwortoptionen
+   - correctIndex (SC) oder correctIndices (MC)
+   - fb: Feedback
+   - neg: true, wenn negativ gepolt ("NICHT"/"außer"/"welche Aussage trifft NICHT zu?")
+   - tb: TB1/TB3/TB7 grobe Zuordnung
+*/
+const POOL = [
+  // TRAUMA-FALL (VKV, Thorax/Abdomen)
+  {id:"T1", tb:"TB7", type:"sc", context:"Traumafall: Pkw-Frontaufprall, Patient hypoton/tachykard.", q:"Was hat jetzt Priorität?", choices:["Sauerstoffgabe & Monitoring","Analgetika titrieren","Antibiotikagabe","Intubation ohne Beurteilung"], correctIndex:0, fb:"ABC stabilisieren, Monitoring etablieren."},
+  {id:"T2", tb:"TB3", type:"mc", context:"An der Einsatzstelle sind Passanten, die den Unfall beobachtet haben.", q:"Welche Punkte sind für die strukturierte Kommunikation wichtig? (Mehrfachauswahl)", choices:["Kurze, gezielte Fragen","Konsequent Fachjargon","Dank & kurze Rückmeldung","Klare Anweisungen/Aufgaben","Details der Kliniktherapie erläutern"], correctIndices:[0,2,3], fb:"Gezielt fragen, wertschätzend kommunizieren, Aufträge klar benennen."},
+  {id:"T3", tb:"TB1", type:"sc", context:"Traumafall: links‑oberbauchbetonte Schmerzen.", q:"Welches Organ ist am ehesten betroffen?", choices:["Milz","Appendix","Harnblase","Duodenum"], correctIndex:0, fb:"Milz bei Links-OBD besonders gefährdet."},
+  {id:"T4", tb:"TB7", type:"mc", context:"Traumafall: hämorrhagischer Schock wird vermutet.", q:"Welche Maßnahmen sind leitliniengerecht? (Mehrfachauswahl)", choices:["Zwei großlumige i.v.-Zugänge","Wärmeerhalt","Permissive Hypotension","Aggressive Volumengabe bis Normotonie","Analgesie sobald vertretbar"], correctIndices:[0,1,2,4], fb:"Permissive Hypotension, Wärmen, Zugänge; keine forcierte Normotonie."},
+  {id:"T5", tb:"TB3", type:"sc", context:"Traumafall: Übergabe an eintreffendes Notarztteam.", q:"Welches Element gehört NICHT in die Kurz-Übergabe?", choices:["Eigene Vorstellung & Rolle","Situations-/Befundzusammenfassung","Konkrete Arbeitsaufträge (z. B. Zugang)","Detaillierter pathophysiologischer Vortrag"], correctIndex:3, fb:"Kurz, klar, aufgabenorientiert – keine Vorträge.", neg:true},
+  {id:"T6", tb:"TB1", type:"mc", context:"Traumafall: fokal-neurologische Auffälligkeiten entstehen.", q:"Welche Symptome sprechen am ehesten für eine intrazerebrale Blutung? (Mehrfachauswahl)", choices:["Hemiparese","Aphasie/Dysarthrie","Bewusstseinseintrübung","Isolierter Schwindel","Plötzlicher heftiger Kopfschmerz"], correctIndices:[0,1,2,4], fb:"Fokale Defizite/Vigilanzminderung; isolierter Schwindel ist unspezifisch."},
+  {id:"T7", tb:"TB1", type:"sc", context:"Traumafall: Vigilanzverluste unklar, Kopfplatzwunde sichtbar.", q:"Welche Diagnostik ist präklinisch am ehesten zu veranlassen?", choices:["CCT (in der Klinik) ankündigen","Röntgen Thorax präklinisch","MRT Abdomen präklinisch","Lumbalpunktion präklinisch"], correctIndex:0, fb:"Frühzeitige Klinikvoranmeldung mit CCT-Indikation."},
+  {id:"T8", tb:"TB7", type:"mc", context:"Traumafall: Atemnot, vermuteter Spannungspneumothorax.", q:"Welche Maßnahmen sind vorrangig? (Mehrfachauswahl)", choices:["Sofortige Entlastung (Nadel/Thoraxdrainage je nach SOP)","100% O2","Zuwarten auf Klinik","Analgesie als einzige Maßnahme","Monitoring/VZ-Check"], correctIndices:[0,1,4], fb:"Lebensrettende Entlastung, O2, Monitoring."},
+  {id:"T9", tb:"TB1", type:"sc", context:"Traumafall: Kreislaufinstabil, kaltschweißig, blass.", q:"Welche Schockform ist am wahrscheinlichsten?", choices:["Hämorrhagisch","Septisch","Kardiogen","Anaphylaktisch"], correctIndex:0, fb:"Traumakontext + Hypotonie → hämorrhagischer Schock."},
+  // DIABETES-FALL (Hypoglykämie + Sturz)
+  {id:"D1", tb:"TB7", type:"sc", context:"Diabetes-Fall: 68-jähriger Insulinpatient, BZ 38 mg/dl.", q:"Welche Maßnahme ist initial indiziert?", choices:["Glukose i.v.","Nur O2","Intubation ohne Glukoseversuch","Flüssigkeitsrestriktion"], correctIndex:0, fb:"Symptomatische Hypoglykämie → Glukose i.v. priorisieren."},
+  {id:"D2", tb:"TB3", type:"mc", context:"Diabetes-Fall: Angehörigenanamnese.", q:"Welche Fragen sind sinnvoll? (Mehrfachauswahl)", choices:["Zuletzt gesehen?","Insuline/Medikamente/Dosis?","Zeugen des Sturzes?","Vorwürfe machen ('Warum keine Glukose?')","Vorbefunde/Krankenhausberichte?"], correctIndices:[0,1,2,4], fb:"Relevante Infos, keine Vorwürfe."},
+  {id:"D3", tb:"TB1", type:"sc", context:"Diabetes-Fall: nach Glukosegabe persistiert Somnolenz, Kopfplatzwunde.", q:"Welche Diagnostik ist jetzt zwingend angezeigt?", choices:["CCT (Schädel-CT)","Röntgen Thorax","MRT Abdomen","Lumbalpunktion"], correctIndex:0, fb:"CCT bei V.a. ICB nach Sturz."},
+  {id:"D4", tb:"TB7", type:"mc", context:"Diabetes-Fall: Patient wieder wach, klagt über Schwindel.", q:"Welche Maßnahmen sind sinnvoll? (Mehrfachauswahl)", choices:["Monitoring","Komplexe Kohlenhydrate zuführen","Reevaluation der Vitalparameter","Alleinige Beobachtung ohne Maßnahmen","Alle Therapien beenden"], correctIndices:[0,1,2], fb:"Monitoring, Nachernährung, Reevaluation."},
+  {id:"D5", tb:"TB3", type:"sc", context:"Diabetes-Fall: Aufklärung Angehöriger.", q:"Was ist besonders wichtig?", choices:["Klare, einfache Sprache","Nur Fachbegriffe","Informationen vermeiden","Nur schriftliche Übergabe"], correctIndex:0, fb:"Adressatengerecht, klar, knapp."},
+  {id:"D6", tb:"TB1", type:"mc", context:"Diabetes-Fall: anhaltend neurologische Auffälligkeiten.", q:"Welche Befunde sprechen für ICB? (Mehrfachauswahl)", choices:["Kopfschmerzen","Übelkeit/Erbrechen","Sprachstörungen","Polyurie","Bewusstseinseintrübung"], correctIndices:[0,1,2,4], fb:"Typische neurologische/Allgemeinsymptome; Polyurie nicht passend."},
+  {id:"D7", tb:"TB7", type:"sc", context:"Diabetes-Fall: Patient ist nicht schluckfähig.", q:"Welche Glukosegabe ist dann geeignet?", choices:["i.v.-Glukose","Orale Gabe","Nur Beobachtung","Warten auf Klinik"], correctIndex:0, fb:"Aspirationsgefahr → i.v.-Gabe."},
+  {id:"D8", tb:"TB7", type:"sc", context:"Diabetes-Fall: kein i.v.-Zugang möglich.", q:"Welche Alternative ist präklinisch etabliert?", choices:["Glukagon i.m./s.c.","Insulin s.c.","Nichts tun","Nur Infusion NaCl 0,9%"], correctIndex:0, fb:"Glukagon als Alternative bei fehlendem Zugang."},
+  // ÜBERGREIFEND / BASIS
+  {id:"G1", tb:"TB7", type:"sc", context:"Allgemein: lebensbedrohliche Probleme müssen zuerst adressiert werden.", q:"Welches Prinzip gilt?", choices:["Treat first what kills first","Immer erst komplette Anamnese","Labor vor Erstmaßnahmen","Dokumentation vor Therapie"], correctIndex:0, fb:"Lebens-/zeitkritisches zuerst."},
+  {id:"G2", tb:"TB1", type:"sc", context:"Allgemein: serielles Vigilanz-Monitoring.", q:"Welcher Score eignet sich präklinisch am ehesten?", choices:["GCS","APGAR","ASA","CHA₂DS₂‑VASc"], correctIndex:0, fb:"GCS für Vigilanzbeurteilung."},
+  {id:"G3", tb:"TB7", type:"mc", context:"Anaphylaxie-Fall: generalisierte Urtikaria, Dyspnoe, Hypotonie.", q:"Welche Maßnahmen sind leitliniengerecht? (Mehrfachauswahl)", choices:["Adrenalin i.m.","Sauerstoffgabe","Volumentherapie","Nur Antihistaminikum","Lagerung je nach Kreislauf"], correctIndices:[0,1,2,5-1], fb:"Adrenalin i.m., O2, Volumen, adäquate Lagerung; Antihistaminikum allein nicht ausreichend."},
+  {id:"G4", tb:"TB7", type:"sc", context:"ACS-Verdacht: retrosternaler Druck, Ausstrahlung, Schweiß.", q:"Welche Erstmaßnahme hat Priorität?", choices:["Monitoring & 12-Kanal-EKG","Morphin zuerst","Sofortige CT-Untersuchung","Nur Beruhigung"], correctIndex:0, fb:"EKG und Monitoring frühzeitig etablieren."},
+  {id:"G5", tb:"TB1", type:"mc", context:"Sepsis-Verdacht: Fieber, Hypotonie, Tachykardie, Apathie.", q:"Welche Befunde stützen die Sepsis-Annahme? (Mehrfachauswahl)", choices:["Hypotonie","Tachykardie","Hypothermie möglich","Bradykardie als Leitsymptom","Mental-Status-Veränderung"], correctIndices:[0,1,2,4], fb:"Kreislaufinstabilität, Temp‑Abweichungen, Bewusstseinsänderung."},
+  // NEGATIONSSPEZIFISCHE ITEMS
+  {id:"N1", tb:"TB7", type:"sc", neg:true, context:"Traumafall.", q:"Welche Maßnahme gehört NICHT zu den Sofortmaßnahmen bei V. a. Spannungspneu?", choices:["Zuwarten bis Klinik","Entlastung je nach SOP","O2-Gabe","Monitoring"], correctIndex:0, fb:"Nicht zuwarten – Entlasten, O2, Monitoring."},
+  {id:"N2", tb:"TB1", type:"mc", neg:true, context:"Allgemein.", q:"Welche Aussagen treffen NICHT zu GCS zu? (Mehrfachauswahl)", choices:["Bewertet Augen, Sprache, Motorik","Wird zur Vigilanzbeurteilung genutzt","Ist spezifisch für Intoxikation konzipiert","Score 3–15","Ist seriell einsetzbar"], correctIndices:[2], fb:"GCS ist nicht spezifisch für Intox; 3–15; Augen/Sprache/Motorik; seriell nutzbar."},
+  {id:"N3", tb:"TB3", type:"sc", neg:true, context:"Kommunikation an der Einsatzstelle.", q:"Was sollte NICHT Teil einer präklinischen Kurz-Übergabe sein?", choices:["Detaillierte Theorieabhandlung","ABCDE-kurz & Befunde","Konkrete Arbeitsaufträge","Allergien/Medikamente (falls bekannt)"], correctIndex:0, fb:"Keine Theorie-Vorträge in der Kurzübergabe."},
+  {id:"N4", tb:"TB1", type:"sc", neg:true, context:"Diabetes-Fall.", q:"Welche Option ist KEIN typisches ICB-Zeichen?", choices:["Isolierter Schwindel","Hemiparese","Aphasie","Bewusstseinseintrübung"], correctIndex:0, fb:"Isolierter Schwindel ist unspezifisch."},
+  {id:"N5", tb:"TB7", type:"mc", neg:true, context:"Anaphylaxie-Fall.", q:"Welche Maßnahmen sind NICHT leitliniengerecht? (Mehrfachauswahl)", choices:["Nur Antihistaminikum als Monotherapie","Verzicht auf O2 bei Dyspnoe","Adrenalin i.m.","Volumentherapie bei Hypotonie"], correctIndices:[0,1], fb:"Adrenalin i.m., O2, Volumen sind korrekt – Monotherapie/Verzicht sind falsch."},
+  {id:"N6", tb:"TB7", type:"sc", neg:true, context:"ACS-Verdacht.", q:"Was gehört NICHT zur initialen Basisdiagnostik?", choices:["Sofortige CT ohne EKG","Monitoring","12-Kanal-EKG","Anamnese & Vitals"], correctIndex:0, fb:"CT ohne EKG gehört nicht zur Erstdiagnostik im ACS-Verdacht."}
+];
+
+/* === State === */
+let remaining = TIME_LIMIT_SECS;
+let timerInt = null;
+let submitted = false;
+let activeQuestions = [];
+
+/* === Helpers === */
+function fmtTime(t){ const m=Math.floor(t/60); const s=(t%60).toString().padStart(2,"0"); return `${m}:${s}`; }
+function shuffle(a){ const arr=a.slice(); for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+
+/* Auswahl: Gesamtzahl 12–18, Negationen 1–3 (wenn verfügbar) */
+function selectQuestions(){
+  const totalCount = Math.floor(Math.random()*(MAX_Q-MIN_Q+1))+MIN_Q;
+  const negPool = POOL.filter(q=>q.neg===true);
+  const posPool = POOL.filter(q=>!q.neg);
+  const maxPossibleNeg = Math.min(MAX_NEG, negPool.length, totalCount-1);
+  const minPossibleNeg = Math.min(MIN_NEG, maxPossibleNeg);
+  const negCount = Math.max(minPossibleNeg, Math.min(maxPossibleNeg, Math.floor(Math.random()* (maxPossibleNeg - minPossibleNeg + 1)) + minPossibleNeg));
+  const posCount = totalCount - negCount;
+  const chosenNeg = shuffle(negPool).slice(0, negCount);
+  const chosenPos = shuffle(posPool).slice(0, posCount);
+  let result = shuffle(chosenNeg.concat(chosenPos));
+  // SC/MC Balance (leichte Durchmischung – optional)
+  return result;
+}
+
+function renderQuestions(){
+  const host=document.getElementById("exam");
+  host.innerHTML="";
+  activeQuestions.forEach((it,idx)=>{
+    const card=document.createElement("div"); card.className="card";
+    const h=document.createElement("h3"); h.textContent=`Frage ${idx+1}`;
+    const ctx=document.createElement("p"); ctx.className="context"; ctx.textContent=it.context;
+    const q=document.createElement("p"); q.innerHTML = it.q + (it.neg? " <span class='tag'>Negation</span>": "");
+    const answers=document.createElement("div"); answers.className="choices";
+
+    // Korrektbits
+    let corrBits=new Array(it.choices.length).fill(0);
+    if(it.type==="sc"){ corrBits[it.correctIndex]=1; }
+    else { (it.correctIndices||[]).forEach(i=>corrBits[i]=1); }
+
+    it.choices.forEach((text,k)=>{
+      const id=`q${idx}_opt${k}`;
+      const lab=document.createElement("label");
+      const inp=document.createElement("input");
+      inp.type = it.type==="sc" ? "radio":"checkbox";
+      inp.name=`q${idx}`; inp.value=k; inp.id=id;
+      lab.setAttribute("for", id);
+      lab.appendChild(inp); lab.append(" "+text);
+      answers.appendChild(lab);
+      inp.addEventListener("change", ()=>{ card.classList.remove("missing"); updateProgressUI(); });
+    });
+
+    card.dataset.corr=JSON.stringify(corrBits);
+    card.dataset.isMs = (it.type==="mc")?"1":"0";
+    card.dataset.feedback = it.fb || "";
+    card.dataset.choices = JSON.stringify(it.choices);
+
+    card.appendChild(h); card.appendChild(ctx); card.appendChild(q); card.appendChild(answers);
+    host.appendChild(card);
+  });
+  document.getElementById("totalCount").textContent = activeQuestions.length;
+  document.getElementById("roundCount").textContent = activeQuestions.length;
+  const negInRound = activeQuestions.filter(q=>q.neg===true).length;
+  document.getElementById("roundNeg").textContent = negInRound;
+  document.getElementById("tagCount").textContent = `Pool aktiv: ${POOL.length}`;
+  document.getElementById("poolSize").textContent = POOL.length;
+  updateProgressUI();
+}
+
+function updateProgressUI(){
+  const cards=[...document.querySelectorAll("#exam .card")];
+  const total=cards.length;
+  let answered=0;
+  cards.forEach((card,i)=>{
+    const inps=card.querySelectorAll(`input[name="q${i}"]`);
+    if([...inps].some(x=>x.checked)) answered++;
+  });
+  document.getElementById("answeredCount").textContent=answered;
+  document.getElementById("totalCount").textContent=total;
+  const pct= total? Math.round(answered/total*100):0;
+  document.getElementById("progressBar").style.width=pct+"%";
+  const allow=(answered===total && total>0);
+  if(!submitted){
+    document.getElementById("submitBtn").disabled=!allow;
+    document.getElementById("submitBtnSide").disabled=!allow;
+    document.getElementById("incompleteMsg").classList.toggle("hidden", allow);
+  }
+}
+
+function scrollToFirstUnanswered(){
+  const cards=[...document.querySelectorAll("#exam .card")];
+  for(let i=0;i<cards.length;i++){
+    const inps=cards[i].querySelectorAll(`input[name="q${i}"]`);
+    const any=[...inps].some(x=>x.checked);
+    cards[i].classList.remove("missing");
+    if(!any){ cards[i].classList.add("missing"); cards[i].scrollIntoView({behavior:"smooth", block:"center"}); break; }
+  }
+}
+
+/* === Timer === */
+function startTimer(){
+  clearInterval(timerInt); remaining=TIME_LIMIT_SECS; submitted=false;
+  const tEl=document.getElementById("timerSide"); const timeMsg=document.getElementById("timeMsg");
+  if(tEl) tEl.classList.remove("warning"); if(timeMsg) timeMsg.classList.add("hidden");
+  const tick=()=>{
+    if(tEl) tEl.textContent="Zeit: "+fmtTime(remaining);
+    if(remaining<=60 && tEl) tEl.classList.add("warning");
+    if(remaining<=0){ clearInterval(timerInt); if(timeMsg){ timeMsg.textContent="Zeit abgelaufen – Abgabe möglich, sobald alles beantwortet ist."; timeMsg.classList.remove("hidden"); } return; }
+    remaining--;
+  };
+  tick(); timerInt=setInterval(tick,1000);
+}
+
+/* === Bewertung === */
+function grade(){
+  const cards=[...document.querySelectorAll("#exam .card")];
+  let sum=0; const details=[];
+  cards.forEach((card,i)=>{
+    const corr=JSON.parse(card.dataset.corr);
+    const isMs=card.dataset.isMs==="1";
+    const inps=[...card.querySelectorAll(`input[name="q${i}"]`)];
+    const sel=inps.map(x=>x.checked?1:0);
+    let ok=0;
+    if(isMs){
+      const tp=sel.reduce((s,v,idx)=> s+(v===1 && corr[idx]===1?1:0),0);
+      const fp=sel.reduce((s,v,idx)=> s+(v===1 && corr[idx]===0?1:0),0);
+      const numCorr=corr.reduce((s,v)=>s+v,0);
+      ok=(tp===numCorr && fp===0)?1:0;
+    } else {
+      const chosen=sel.findIndex(v=>v===1);
+      const corrIdx=corr.findIndex(v=>v===1);
+      ok=(chosen===corrIdx)?1:0;
+    }
+    sum+=ok;
+    const chTexts=JSON.parse(card.dataset.choices);
+    const chosenTxt=chTexts.filter((_,idx)=> sel[idx]===1).join(" • ") || "—";
+    const corrTxt=chTexts.filter((_,idx)=> corr[idx]===1).join(" • ");
+    details.push({ok, chosenTxt, corrTxt, fb: card.dataset.feedback || ""});
+  });
+  const total=cards.length; const percent=Math.round(sum/total*100);
+  const passed=percent>=PASS_THRESHOLD;
+  return {percent, passed, details, total};
+}
+function showSolutions(details){
+  const cards=[...document.querySelectorAll("#exam .card")];
+  details.forEach((d,i)=>{
+    const sol=document.createElement("div"); sol.className="note";
+    sol.innerHTML=`<strong>Deine Antwort:</strong> ${d.chosenTxt}<br><strong>Richtig:</strong> ${d.corrTxt} ${d.ok?"✅":"❌"}<br><span>${d.fb}</span>`;
+    cards[i].appendChild(sol);
+  });
+}
+function computeBand(p){ if(p>=85) return {cls:"grade1",label:"sehr gut"}; if(p>=70) return {cls:"grade2",label:"gut"}; if(p>=60) return {cls:"grade3",label:"bestanden"}; return {cls:"grade5",label:"nicht bestanden"}; }
+
+/* === Events === */
+document.getElementById("startBtn").addEventListener("click", ()=>{
+  const pid=(document.getElementById("pid").value||"").trim();
+  const acc=(document.getElementById("access").value||"").trim();
+  const msg=document.getElementById("gateMsg"); msg.textContent="";
+  if(!pid || pid.length<4){ msg.textContent="Bitte gültigen Teilnehmercode eingeben."; return; }
+  if(acc!==ACCESS_CODE){ msg.textContent="Zugangscode ist falsch."; return; }
+  // Auswahl erzeugen
+  activeQuestions = selectQuestions();
+  document.getElementById("gateBox").classList.add("hidden");
+  document.getElementById("exam").classList.remove("hidden");
+  document.getElementById("actionBar").classList.remove("hidden");
+  renderQuestions(); startTimer();
+});
+
+function trySubmit(){
+  if(submitted) return;
+  const cards=[...document.querySelectorAll("#exam .card")];
+  const total=cards.length;
+  let answered=0;
+  cards.forEach((card,i)=>{
+    const inps=card.querySelectorAll(`input[name="q${i}"]`);
+    if([...inps].some(x=>x.checked)) answered++;
+  });
+  if(answered<total){ document.getElementById("incompleteMsg").classList.remove("hidden"); scrollToFirstUnanswered(); return; }
+  submitted=true; clearInterval(timerInt);
+  const {percent, passed, details}=grade();
+  const band=computeBand(percent);
+  const box=document.getElementById("summary");
+  box.className="result "+band.cls; box.textContent=`${percent}% – ${band.label}${passed?" ✅":" ❌"}`; box.classList.remove("hidden");
+  showSolutions(details);
+  document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(el=>el.disabled=true);
+  document.getElementById("submitBtn").disabled=true; document.getElementById("submitBtnSide").disabled=true;
+  document.getElementById("retryBtn").classList.remove("hidden");
+  window.scrollTo({top: document.body.scrollHeight, behavior:"smooth"});
+}
+
+document.getElementById("submitBtn").addEventListener("click", trySubmit);
+document.getElementById("submitBtnSide").addEventListener("click", trySubmit);
+document.getElementById("retryBtn").addEventListener("click", ()=>location.reload());
+</script>
+</body>
+</html>

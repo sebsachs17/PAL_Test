@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PAL – Hybrid-Test (Single File · Sidebar · Negativ-Min/Max · Abgabe nur vollständig) – v27.4a</title>
+  <style>
+    :root { --sidebar-w: 280px; }
+    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; margin: 0; background:#fff; color:#111; }
+    header { max-width: 1100px; margin: 32px auto 12px; padding: 0 16px; }
+    h1 { margin: 0 0 6px 0; font-weight: 800; letter-spacing:.2px; }
+    .meta, .muted { color: #555; }
+    .muted { font-size: 0.95rem; white-space: pre-wrap; }
+    .layout { max-width: 1100px; margin: 0 auto; padding: 0 16px 36px; display: grid; grid-template-columns: 1fr var(--sidebar-w); gap: 18px; align-items: start; }
+    main { min-width: 0; }
+    aside.sidebar { position: sticky; top: 12px; align-self: start; }
+    .sidecard { border: 1px solid #e5e5e5; border-radius: 12px; padding: 14px; background: #fff; box-shadow: 0 6px 18px rgba(0,0,0,0.04); }
+    .sidecard + .sidecard { margin-top: 12px; }
+    .timer { font-weight: 800; padding: 8px 12px; border-radius: 8px; border: 1px solid #e5e5e5; display: inline-block; }
+    .timer.warning { color: #8a1c1c; border-color: #f3b7b7; background: #fdecec; }
+    .bar { height: 8px; border-radius: 999px; background: #eee; overflow: hidden; }
+    .bar > span { display: block; height: 100%; width: 0%; background: #7aa2ff; transition: width .25s ease; }
+    .grid { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; align-items: center; }
+    .grid .label { color:#555; }
+    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #cfcfcf; background: #fff; cursor: pointer; }
+    button.primary { border-color: #6d93ff; }
+    button[disabled] { opacity: .6; cursor: not-allowed; }
+    .actions { display:flex; gap: 12px; margin: 12px 0 6px; flex-wrap: wrap; align-items:center; }
+    .hidden { display:none; }
+    .card { border: 1px solid #e5e5e5; border-radius: 10px; padding: 16px; margin: 16px 0; background:#fff; transition: box-shadow .2s ease, border-color .2s ease; }
+    .choices label { display:block; margin: 6px 0; cursor: pointer; }
+    .result { font-weight: 700; padding: 12px; border-radius: 10px; margin-top: 12px; }
+    /* Ergebnisfarben (Fehlerbänder) */
+    .grade1 { background:#e7f7ee; border:1px solid #a6e0c3; color:#0f5c3a; }
+    .grade2 { background:#e8f3ff; border:1px solid #b6d6ff; color:#0b4a8b; }
+    .grade3 { background:#fff7e6; border:1px solid #ffdd99; color:#8a5a00; }
+    .grade4 { background:#ffe9e0; border:1px solid #ffc2a6; color:#8a3f0f; }
+    .grade5 { background:#fdecec; border:1px solid #f3b7b7; color:#8a1c1c; }
+
+    /* Gate */
+    .gate { border:1px solid #e5e5e5; border-radius:10px; padding:16px; margin:12px 0 18px; background:#fcfcfc; }
+    .gate .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:8px 0; }
+    .gate input[type="text"] { padding:8px 10px; border:1px solid #cfcfcf; border-radius:8px; }
+    .warn { color:#8a1c1c; }
+    .info { color:#0b4a8b; }
+
+    .footer { margin-top: 28px; font-size: 0.9rem; color:#666; }
+    .noscript { margin:16px; padding:12px; border:1px solid #f3b7b7; background:#fdecec; color:#8a1c1c; border-radius:10px; }
+
+    .spacer10 { height: 10px; }
+
+    /* Unanswered highlight */
+    .missing { border-color: #f3b7b7; box-shadow: 0 0 0 3px rgba(243,183,183,0.45); }
+    .neg-badge { font-size:0.85em; color:#8a3f0f; }
+
+    /* Mobile: Sidebar unter Inhalt */
+    @media (max-width: 880px) {
+      :root { --sidebar-w: 100%; }
+      .layout { grid-template-columns: 1fr; }
+      aside.sidebar { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PAL – Standardisierter Hybrid-Test (PAL-only, Sidebar + Negativ‑Items)</h1>
+    <div class="meta" id="meta"></div>
+    <div class="muted">Übung und Lernstandskontrolle für angehende Praxisanleiter.</div>
+    <div class="muted">© 2025 Sebastian Sachs · Urheberrechtshinweis: Fragenpool & Itemformulierungen (inkl. Auswahl/Anordnung). Alle Rechte vorbehalten.</div>
+  </header>
+
+  <div class="layout">
+    <main>
+      <div class="gate" id="gateBox">
+        <strong>Start</strong>
+        <div class="row">
+          <label for="access">Zugangscode:</label>
+          <input id="access" type="text" placeholder="z. B. pal2025" maxlength="60" />
+        </div>
+        <div class="row">
+          <label for="pid">Teilnehmercode (anonym, 4–12 Zeichen):</label>
+          <input id="pid" type="text" placeholder="z. B. AB47XZ" maxlength="40" />
+        </div>
+        <div class="row">
+          <button id="startBtn" class="primary">Test starten</button>
+          <span id="gateMsg" class="warn"></span>
+        </div>
+        <p class="muted">Hinweis: Der Zugangscode ist eine einfache Hürde (im Quelltext sichtbar). Für echte Zugangskontrolle wäre ein Server nötig.</p>
+      </div>
+
+      <div class="actions hidden" id="actionBar">
+        <button id="submitBtn" disabled>Abgeben & Ergebnis anzeigen</button>
+        <button id="retryBtn" class="hidden">Neu starten</button>
+        <span id="incompleteMsg" class="warn hidden">Bitte alle Fragen beantworten, bevor Sie abgeben.</span>
+        <span id="timeMsg" class="warn hidden"></span>
+      </div>
+
+      <div id="summary" class="result hidden"></div>
+      <div class="actions hidden" id="exportBox">
+        <button id="downloadCsvBtn">CSV exportieren</button>
+        <button id="copyCsvBtn">CSV kopieren</button>
+      </div>
+
+      <div id="quiz" class="hidden"></div>
+
+      <div class="footer">
+        <p class="muted">Verarbeitung erfolgt lokal im Browser. Nach der Abgabe werden die <strong>Lösungen und kurze Erläuterungen</strong> pro Item angezeigt. CSV enthält Scores (0/1) für SI/TI sowie Raw‑Werte (0..1) für Teilpunkte bei Multiple‑Select.</p>
+      </div>
+    </main>
+
+    <aside class="sidebar right">
+      <div class="sidecard">
+        <div id="timerSide" class="timer" aria-live="polite" title="Countdown">Zeit: 10:00</div>
+        <div class="spacer10"></div>
+        <div class="grid">
+          <div class="label">Bearbeitet</div><div><strong><span id="answeredCount">0</span>/<span id="totalCount">0</span></strong></div>
+          <div class="label">Fortschritt</div>
+          <div class="bar"><span id="progressBar" style="width:0%"></span></div>
+        </div>
+        <div class="spacer10"></div>
+        <button id="submitBtnSide" class="primary" disabled>Abgeben</button>
+      </div>
+
+      <div class="sidecard">
+        <div class="muted">
+          Bestehensgrenze: <strong><span id="uiPass">–</span></strong><br>
+          Timer: <strong><span id="uiTimer">–</span></strong><br>
+          Fragepool gesamt: <strong><span id="uiPool">–</span></strong>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <noscript>
+    <div class="noscript">
+      JavaScript ist deaktiviert. Bitte aktivieren, um den Test zu starten.
+    </div>
+  </noscript>
+
+<script>
+/* ======= KONFIG ======= */
+const TEST_TITLE = "Prüfen, Prüfungsangst, Gütekriterien & NotSan-APrV – Hybrid (PAL-only)";
+const PASS_THRESHOLD = 60; // %
+const TIME_LIMIT_SECS = 10 * 60; // 10 Minuten
+const ACCESS_CODE = "pal2025";
+const TEST_LENGTH = 20;
+const MS_SCORING = "all_or_nothing"; // "all_or_nothing" | "partial"
+const MS_MIN = 5;
+const MS_MAX = 7;
+const APRV_FIXED = 4;
+const BF_MAX = 2;
+const NEG_MIN = 2; // Mindestzahl negativer Items
+const NEG_MAX = 4; // Maximalzahl negativer Items
+const REQUIRE_ALL_ANSWERED = true;
+
+/* ======= NOTENFARBEN (nach Fehlern) ======= */
+const GRADE_BANDS = [
+  { maxErrors: 2, note: 1, cls: "grade1", label: "sehr gut" },
+  { maxErrors: 5, note: 2, cls: "grade2", label: "gut" },
+  { maxErrors: 8, note: 3, cls: "grade3", label: "befriedigend" },
+  { maxErrors: Infinity, note: 4, cls: "grade4", label: "ausreichend" }
+];
+function computeNote(passed, details){
+  const errors = details.reduce((s,d)=> s + (d.ok ? 0 : 1), 0);
+  if(!passed) return { note: 5, cls: "grade5", label: "nicht bestanden", errors };
+  for(const band of GRADE_BANDS){
+    if(errors <= band.maxErrors) return { note: band.note, cls: band.cls, label: band.label, errors };
+  }
+  return { note: 4, cls: "grade4", label: "ausreichend", errors };
+}
+
+/* ======= SEEDED RNG ======= */
+function cyrb53(str, seed=0){
+  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0, ch; i < str.length; i++) {
+    ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1>>>16), 2246822507) ^ Math.imul(h2 ^ (h2>>>13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2>>>16), 2246822507) ^ Math.imul(h1 ^ (h1>>>13), 3266489909);
+  return 4294967296 * (2097151 & h2) + (h1>>>0);
+}
+function mulberry32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a>>>15, 1 | a); t = t + Math.imul(t ^ t>>>7, 61 | t) ^ t; return ((t ^ t>>>14) >>> 0) / 4294967296; } }
+function seededShuffle(array, rng){
+  const a = array.slice();
+  for(let i=a.length-1;i>0;i--){ const j = Math.floor(rng()* (i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+function sample(array, n, rng){
+  const a = seededShuffle(array, rng);
+  return a.slice(0, Math.min(n, a.length));
+}
+
+/* ======= ITEM-POOL (PAL-only, inkl. neg:true) ======= */
+const POOL = [
+  /* Gütekriterien */
+  { id:"Q01", cat:"gk", q:"Welche Aussage beschreibt <em>Objektivität</em> einer Prüfung am besten?", choices:["Die Prüfung misst, was sie messen soll","Die Ergebnisse sind unabhängig vom Prüfer","Die Ergebnisse sind bei Wiederholung stabil","Die Prüfung ist möglichst schwer"], correctIndex:1, fb:"Objektivität = Unabhängigkeit vom Prüfer; Durchführungs-, Auswertungs-, Interpretationsobjektivität." },
+  { id:"Q02", cat:"gk", q:"Welcher Aspekt gehört NICHT zur Objektivität?", choices:["Durchführungsobjektivität","Interpretationsobjektivität","Auswertungsobjektivität","Zeitobjektivität"], correctIndex:3, fb:"Objektivität gliedert sich in Durchführung, Auswertung, Interpretation." },
+  { id:"Q03", cat:"gk", q:"Welche Maßnahme erhöht die <em>Durchführungsobjektivität</em>?", choices:["Freie Wahl der Aufgaben je Schüler","Gleiche Aufgabenstellung und Bedingungen für alle","Offene Beurteilung ohne Kriterien","Bewertung durch nur einen Prüfer"], correctIndex:1, fb:"Gleiche Bedingungen reduzieren Prüfer-Einflüsse." },
+  { id:"Q04", cat:"gk", q:"Was erhöht die <em>Auswertungsobjektivität</em>?", choices:["Bewerten nach Gefühl","Standardisierte Checkliste mit Kriterien","Nur ein sehr erfahrener Prüfer","Mündliches Feedback ohne Dokumentation"], correctIndex:1, fb:"Standardisierte Kriterien/Checklisten erhöhen Auswertungsobjektivität." },
+  { id:"Q05", cat:"gk", q:"Was unterstützt die <em>Interpretationsobjektivität</em>?", choices:["Individuelle Auslegung je Prüfer","Gemeinsames Bewertungsraster mit Grenzwerten","Ad-hoc-Noten ohne Begründung","Komplett freie Gewichtung durch den Prüfer"], correctIndex:1, fb:"Einheitliches Raster für Schlussfolgerungen." },
+  { id:"Q06", cat:"gk", q:"Reliabilität bedeutet…", choices:["Gültigkeit der Messung","Zuverlässigkeit/Wiederholbarkeit","Unabhängigkeit vom Prüfer","Schwierigkeit der Aufgaben"], correctIndex:1, fb:"Reliabilität = Zuverlässigkeit." },
+  { id:"Q07", cat:"gk", q:"Welche Maßnahme zielt auf höhere Reliabilität im praktischen Prüfen?", choices:["Parallelbewertung durch mehrere Prüfer","Mehr Freitext ohne Kriterien","Wechselnde Aufgaben ohne Abgleich","Nur mündliche Hinweise"], correctIndex:0, fb:"Parallelbewertung erhöht die Zuverlässigkeit." },
+  { id:"Q08", cat:"gk", q:"Validität bedeutet…", choices:["Die Prüfung misst das, was sie messen soll","Hohe Übereinstimmung zwischen Prüfern","Immer gleiche Ergebnisse","Hohe Bestehensquote"], correctIndex:0, fb:"Validität = Gültigkeit." },
+  { id:"Q09", cat:"gk", q:"Welche Aussage zur Validität ist korrekt?", choices:["Sie ist am leichtesten zu bestimmen","Sie ist am schwierigsten zu belegen","Sie ist dasselbe wie Reliabilität","Sie widerspricht der Objektivität"], correctIndex:1, fb:"Validität ist oft am schwierigsten nachzuweisen." },
+  { id:"Q10", cat:"gk", q:"Transparenz bedeutet in Prüfungen vor allem…", choices:["Keine Informationen vorab geben","Kriterien/Erwartungshorizonte offenlegen","Zufallsentscheidungen betonen","Nur Note mitteilen, keine Begründung"], correctIndex:1, fb:"Transparenz: Prüflinge wissen, was erwartet wird." },
+  { id:"Q11", cat:"gk", q:"Angemessenheit einer Prüfung heißt…", choices:["Maximale Komplexität für alle","Abstimmung der Anforderungen auf Lernstand und Unterricht","Ausschließlich Reproduktion von Wissen","Nur Expertenaufgaben"], correctIndex:1, fb:"Anforderungen passen zu Lernstand & Unterricht." },
+  { id:"Q12", cat:"gk", q:"Welche Aussage zur <em>Trennschärfe</em> trifft zu?", choices:["Je leichter alle Items, desto höher die Trennschärfe","Mittel-schwere Items trennen meist besser","Trennschärfe ist unabhängig vom Schwierigkeitsindex","Trennschärfe ist die Bestehensgrenze"], correctIndex:1, fb:"Viele mittel-schwere Items trennen besser." },
+
+  /* Bezugsnormen */
+  { id:"Q13", cat:"bn", q:"Bei „ab 60 % = bestanden“ liegt welche Bezugsnorm zugrunde?", choices:["Soziale Bezugsnorm","Kriteriale Bezugsnorm","Individuelle Bezugsnorm","Keine"], correctIndex:1, fb:"Vergleich mit festem Standard = Kriteriale Bezugsnorm." },
+  { id:"Q14", cat:"bn", q:"„Du bist besser als 80 % deiner Gruppe.“ – das ist welche Bezugsnorm?", choices:["Soziale Bezugsnorm","Kriteriale Bezugsnorm","Individuelle Bezugsnorm","Validitätsaussage"], correctIndex:0, fb:"Vergleich mit der Gruppe." },
+  { id:"Q15", cat:"bn", q:"„Seit der letzten Prüfung hast du dich um 2 Noten verbessert.“ – das ist welche Bezugsnorm?", choices:["Soziale Bezugsnorm","Kriteriale Bezugsnorm","Individuelle Bezugsnorm","Objektivität"], correctIndex:2, fb:"Vergleich mit sich selbst über die Zeit." },
+
+  /* Bewertungsfehler */
+  { id:"Q16", cat:"bf", q:"Welcher Effekt: Früher Eindruck des Prüfers vom Prüfling prägt weitere Beobachtungen/Bewertungen?", choices:["Reihenfolgen-Effekt","Halo-Effekt","Erster-Eindruck-Effekt","Kontrastfehler"], correctIndex:2, fb:"Primacy/Erster Eindruck." },
+  { id:"Q17", cat:"bf", q:"Welcher Effekt: Ein hervorstechendes Merkmal des Prüflings „überstrahlt“ andere Merkmale in der Bewertung des Prüfers?", choices:["Halo-Effekt","Sympathie-Effekt","Beziehungs-Effekt","Tendenz zur Mitte"], correctIndex:0, fb:"Halo-Effekt." },
+  { id:"Q18", cat:"bf", q:"Welcher Effekt: Sympathie des Prüfers für den Prüfling führt zu einer zu günstigen Bewertung?", choices:["Sympathie-Effekt","Macht-Effekt","Andorra-Effekt","Korrekturfehler"], correctIndex:0, fb:"Sympathie-Verzerrung." },
+  { id:"Q19", cat:"bf", q:"Welcher Effekt: Ein Prüfer bewertet systematisch zu streng oder zu milde über viele Bewertungen hinweg?", choices:["Kontrastfehler","Tendenzfehler","Reihenfolgen-Effekt","Beziehungs-Effekt"], correctIndex:1, fb:"Tendenzfehler." },
+
+  /* Fachgespräch */
+  { id:"Q30", cat:"fg", q:"Wozu dient das Fachgespräch in der praktischen Prüfung?", choices:["Nur Notenmitteilung","Reflexion & Begründung des Vorgehens; Vertiefung & Transfer","Ausschließlich Wiederholung von Leitlinien","Bewertung der Sympathie"], correctIndex:1, fb:"Reflexion, Begründungen, Transfer." },
+
+  /* Kompetenz */
+  { id:"Q31", cat:"komp", q:"Welche Benner-Reihenfolge ist korrekt?", choices:["Novize → Fortgeschrittener Anfänger → Kompetent → Erfahren → Experte","Novize → Kompetent → Fortgeschrittener Anfänger → Experte → Erfahren","Erfahren → Novize → Kompetent → Fortgeschrittener Anfänger → Experte","Fortgeschrittener Anfänger → Kompetent → Novize → Erfahren → Experte"], correctIndex:0, fb:"Klassische Sequenz nach Benner." },
+  { id:"Q32", cat:"komp", q:"Kompetenz vs. Qualifikation – was trifft zu?", choices:["Qualifikation = formaler Nachweis; Kompetenz = situationsgerechtes Handeln","Kompetenz = Zertifikat; Qualifikation = situatives Handeln","Beides ist identisch","Kompetenz nur Wissen, ohne Anwendung"], correctIndex:0, fb:"Qualifikation ist formell, Kompetenz zeigt sich im Handeln." },
+  { id:"Q41", cat:"komp", q:"Welche Beschreibung trifft <em>rettungsdienstliche Handlungskompetenz</em> am besten?", choices:["Wissen wird auswendig gelernt und wiederholt","Bereitschaft und Fähigkeit, in Situationen sach-/fachgerecht, persönlich durchdacht und sozial verantwortlich zu handeln","Nur technische Skills ohne Reflexion","Nur Teamfähigkeit"], correctIndex:1, fb:"Sach-/fachgerecht, reflektiert und sozial verantwortlich handeln." },
+  { id:"Q42", cat:"komp", q:"Welche Kompetenzbereiche vereint die rettungsdienstliche Handlungskompetenz?", choices:["Fach-, Sozial- und Selbstkompetenz","Motorik-, Sprach- und Denkleistung","Theorie-, Praxis- und Prüfkompetenz","Gedächtnis-, Logik- und Teamkompetenz"], correctIndex:0, fb:"Fach-, Sozial-, Selbstkompetenz." },
+  { id:"Q43", cat:"komp", q:"Prinzip der Exemplarik – was ist gemeint?", choices:["Ein Beispiel steht exemplarisch für Allgemeines; Transfer auf neue Situationen","Viele Beispiele schnell überfliegen ohne Tiefe","Beispiele vermeiden, nur Definitionen nutzen","Ein Beispiel exakt auswendig lernen, ohne Anwendung"], correctIndex:0, fb:"Vom Beispiel zu allgemeinen Einsichten; Transfer." },
+
+  /* Multiple-Select (PAL-Themen) */
+  { id:"Q45", cat:"gk", type:"ms", q:"Welche Maßnahmen erhöhen die <em>Durchführungsobjektivität</em>? (Mehrfachauswahl)", choices:[
+      "Gleiche Aufgabenstellung und Bedingungen für alle",
+      "Standardisierte Instruktionen",
+      "Freie Auswahl unterschiedlicher Aufgaben je Schüler",
+      "Unterschiedliche Prüfungsumgebungen je Gruppe"
+    ], correctIndices:[0,1], fb:"Gleiche Bedingungen & Instruktion." },
+  { id:"Q46", cat:"gk", type:"ms", q:"Welche zählen zu den <em>Nebengütekriterien</em>? (Mehrfachauswahl)", choices:[
+      "Transparenz",
+      "Angemessenheit",
+      "Trennschärfe",
+      "Sympathie"
+    ], correctIndices:[0,1,2], fb:"Nebengütekriterien: Transparenz, Angemessenheit, Trennschärfe." },
+  { id:"Q47", cat:"komp", type:"ms", q:"Was fördert den <em>Kompetenzerwerb</em> in Lernsituationen? (Mehrfachauswahl)", choices:[
+      "Komplexe, realistische Aufgaben mit Reflexion",
+      "Selbstständige Planung, Durchführung und Auswertung",
+      "Nur reines Auswendiglernen ohne Anwendung",
+      "Regelmäßige, strukturierte Rückmeldung zum Vorgehen"
+    ], correctIndices:[0,1,3], fb:"Komplexe Aufgaben, Selbststeuerung, Feedback." },
+  { id:"Q48", cat:"bn", type:"ms", q:"Welche Aussagen passen zur <em>Kriterialen Bezugsnorm</em>? (Mehrfachauswahl)", choices:[
+      "Vergleich mit einem festgelegten Standard",
+      "Vergleich mit der Gruppe",
+      "Bestehen ab 60 %",
+      "Vergleich mit der eigenen früheren Leistung"
+    ], correctIndices:[0,2], fb:"Kriterial = Vergleich mit Standard/Schwelle." },
+  { id:"Q49", cat:"gk", type:"ms", q:"Was erhöht die <em>Auswertungsobjektivität</em>? (Mehrfachauswahl)", choices:[
+      "Klare Kriterien/Checklisten",
+      "Zwei unabhängige Beurteiler",
+      "Freie, individuelle Interpretation jedes Prüfers",
+      "Musterlösungen/Beispielantworten"
+    ], correctIndices:[0,1,3], fb:"Kriterien, Doppelbewertung, Musterlösungen." },
+  { id:"Q50", cat:"komp", type:"ms", q:"Reflexionsphase nach einer Lernsituation – was gehört dazu? (Mehrfachauswahl)", choices:[
+      "Benennen, was gut lief und warum",
+      "Konkrete Verbesserungen ableiten",
+      "Nur die Note mitteilen",
+      "Transfer/Next Steps planen"
+    ], correctIndices:[0,1,3], fb:"Begründen, verbessern, transferieren." },
+  { id:"Q51", cat:"bn", type:"ms", q:"Welche Aussagen sind Beispiele für die <em>Soziale Bezugsnorm</em>? (Mehrfachauswahl)", choices:[
+      "Rangplatz in der Gruppe",
+      "Prozentrang innerhalb der Kohorte",
+      "Bestehen ab 60 %",
+      "Vergleich mit der eigenen früheren Leistung"
+    ], correctIndices:[0,1], fb:"Sozial = Vergleich mit Gruppe." },
+  { id:"Q52", cat:"gk", type:"ms", q:"Was erhöht die <em>Validität</em> einer Prüfung? (Mehrfachauswahl)", choices:[
+      "Aufgaben passen zum Zielkonstrukt",
+      "Ausreichende Inhaltsabdeckung",
+      "Bewerten nach Bauchgefühl",
+      "Authentische/realistische Settings, wo passend"
+    ], correctIndices:[0,1,3], fb:"Passung, Abdeckung, Authentizität." },
+
+  /* NotSan-APrV (positiv) */
+  { id:"APRV_Q1", cat:"aprv", q:"Wo legt der reguläre NotSan-Schüler seine staatliche Prüfung ab?", choices:[
+      "Bei der zuständigen Behörde (Regierungspräsidium/Landesamt)",
+      "An der Schule, an der er die Ausbildung abschließt (Ausnahmen durch die Behörde möglich)",
+      "Grundsätzlich in der Lehrrettungswache",
+      "Im Krankenhaus der Kooperationsklinik"
+    ], correctIndex:1, fb:"Regelfall: an der Schule; Ausnahmen durch Behörde möglich." },
+  { id:"APRV_Q2", cat:"aprv", type:"ms", q:"Praktischer Prüfungsteil: Welche Aussagen treffen zu? (Mehrfachauswahl)", choices:[
+      "Es sind vier Fallbeispiele zu bearbeiten",
+      "Innere, Trauma und Reanimation sind verpflichtend abgedeckt",
+      "Mindestens ein Fall umfasst Zielklinik-Auswahl, Leitstellenkontakt/Anmeldung und strukturierte Übergabe",
+      "Es findet kein Fachgespräch statt",
+      "Je Fallbeispiel (inkl. Fachgespräch) ca. 20–40 Minuten"
+    ], correctIndices:[0,1,2,4], fb:"Vier Fälle; Pflichtbereiche; Fachgespräch; 20–40 Min." },
+  { id:"APRV_Q3", cat:"aprv", type:"ms", q:"Schriftlicher Teil (Vollprüfung): Welche Bereiche sind abgedeckt? (Mehrfachauswahl)", choices:[
+      "Rettungsdienstliche Maßnahmen/Gefahrenabwehr; Einsatzkonzepte",
+      "Mitwirkung Diagnostik/Therapie; lebenserhaltende/abwendend-schwere Maßnahmen",
+      "Handeln an Qualitätskriterien ausrichten; Berufsrolle im Kontext",
+      "„In Gruppen/Teams zusammenarbeiten“ als eigener schriftlicher Bereich"
+    ], correctIndices:[0,1,2], fb:"Drei Bereiche gem. APrV." },
+  { id:"APRV_Q4", cat:"aprv", q:"Darf Anatomie/Physiologie in der Vollprüfung geprüft werden?", choices:[
+      "Nein, ausdrücklich ausgeschlossen",
+      "Ja, als eigenständiges Prüfungsfach",
+      "Ja, als Bezugswissenschaft kompetenzorientiert in Aufgaben eingebettet",
+      "Nur in der Ergänzungsprüfung"
+    ], correctIndex:2, fb:"Bezugswissenschaft, kein eigenes Fach." },
+  { id:"APRV_Q5", cat:"aprv", q:"Wie ist die Ausbildung strukturiert (Stundenverteilung gesamt 4.600 h)?", choices:[
+      "1.920 h Schule · 1.960 h Lehrrettungswache · 720 h Krankenhaus",
+      "2.100 h Schule · 1.800 h Lehrrettungswache · 700 h Krankenhaus",
+      "1.600 h Schule · 2.000 h Lehrrettungswache · 1.000 h Krankenhaus",
+      "1.920 h Schule · 720 h Lehrrettungswache · 1.960 h Krankenhaus"
+    ], correctIndex:0, fb:"1.920/1.960/720." },
+  { id:"APRV_Q6", cat:"aprv", type:"ms", q:"Prüfungsausschuss (staatliche Prüfung/Ergänzungsprüfung): Mindest-Besetzung? (Mehrfachauswahl)", choices:[
+      "Vorsitz: Vertreter der zuständigen Behörde (oder beauftragte fachlich geeignete Person)",
+      "Schulleiter als Mitglied",
+      "Fachprüfer (Lehrkräfte; mind. ein Arzt mit Zusatzweiterbildung Notfallmedizin)",
+      "Mind. eine praxisanleitende Person (zum Prüfungszeitpunkt tätig)",
+      "Externer Jurist zwingend",
+      "Vertreter der Leitstelle verpflichtend"
+    ], correctIndices:[0,1,2,3], fb:"Zusammensetzung gem. §5 APrV." },
+  { id:"APRV_Q7", cat:"aprv", type:"ms", q:"Praxisanleiter – wer ist geeignet, wofür verantwortlich? (Mehrfachauswahl)", choices:[
+      "Geeignet an der Lehrrettungswache: NotSan oder RA (§30 NotSanG) mit mind. 2 Jahren Berufserfahrung",
+      "Aufgabe: den Schüler schrittweise an Aufgaben heranführen; Theorie–Praxis‑Verzahnung sichern",
+      "Aufgabe: geeignete NotSan/RA für die Betreuung während regulärer Einsatzdienste vorschlagen",
+      "Praxisbegleitung (Lehrkraftbesuche) ist primär Aufgabe der Lehrkräfte"
+    ], correctIndices:[0,1,2,3], fb:"Eignung & Aufgaben gem. APrV; Praxisbegleitung: Lehrkräfte." },
+  { id:"APRV_Q8", cat:"aprv", type:"ms", q:"Muss der Praxisanleiter zwingend NotSan sein? Welche Besonderheiten gelten? (Mehrfachauswahl)", choices:[
+      "Zulässig: NotSan oder RA (mit Weiterführung nach §30 NotSanG)",
+      "Erforderlich: mind. 2 Jahre Berufserfahrung als NotSan (Übergangsregelungen beachten)",
+      "Erforderlich: berufspädagogische Zusatzqualifikation ≥ 300 Stunden plus 24 Stunden Fortbildung pro Jahr"
+    ], correctIndices:[0,1,2], fb:"Qualifikationen gem. §3 APrV; kein Arztzwang." },
+
+  /* ===== NEGATIV-Items (inkl. Bezugsnorm-Beispiel) ===== */
+  { id:"Q01N", cat:"gk", neg:true, q:"Was gehört NICHT zur <em>Objektivität</em> einer Prüfung?", choices:["Gleiche Durchführung für alle","Auswertung nach festen Kriterien","Interpretation nach einheitlichen Maßstäben","Bewertung vorrangig nach Bauchgefühl des Prüfers"], correctIndex:3, fb:"Objektivität schließt Bauchgefühl aus." },
+  { id:"Q04N", cat:"gk", neg:true, q:"Was gehört NICHT zur <em>Auswertungsobjektivität</em>?", choices:["Eindeutige Kriterien/Checklisten","Zwei unabhängige Bewerter","Musterlösungen","Freie Interpretation je Prüfer ohne Raster"], correctIndex:3, fb:"Freie Interpretation untergräbt Auswertungsobjektivität." },
+  { id:"Q06N", cat:"gk", neg:true, q:"Reliabilität bedeutet NICHT…", choices:["Zuverlässigkeit/Wiederholbarkeit","Gültigkeit der Messung","Möglichst geringe Messfehler","Stabile Ergebnisse bei Wiederholung"], correctIndex:1, fb:"Gültigkeit = Validität, nicht Reliabilität." },
+  { id:"Q08N", cat:"gk", neg:true, q:"Validität bedeutet NICHT…", choices:["Die Prüfung misst das intendierte Konstrukt","Immer gleiche Ergebnisse (Wiederholbarkeit)","Inhaltsabdeckung passend zum Ziel","Aufgaben decken den Anspruch ab"], correctIndex:1, fb:"Wiederholbarkeit ist Reliabilität." },
+  { id:"Q10N", cat:"gk", neg:true, q:"Transparenz bedeutet NICHT…", choices:["Kriterien/Erwartungen offenlegen","Erwartungen geheim halten","Musterlösungen kommunizieren, wo sinnvoll","Bewertung nachvollziehbar begründen"], correctIndex:1, fb:"Geheime Erwartungen widersprechen Transparenz." },
+  { id:"Q12N", cat:"gk", neg:true, q:"Was erhöht die <em>Trennschärfe</em> NICHT?", choices:["Mittel-schwere, gut formulierte Items","Sehr leichte Items, die fast alle richtig lösen","Homogene, eindeutige Antwortoptionen","Vermeidung von Doppeldeutigkeiten"], correctIndex:1, fb:"Sehr leichte Items trennen kaum." },
+  { id:"BN13N", cat:"bn", neg:true, q:"Welche Aussage passt NICHT zur <em>kriterialen Bezugsnorm</em>?", choices:["Vergleich mit einem festgelegten Standard","Vergleich mit der Gruppe","Orientierung an Lernzielen/Kompetenzstandards","Schwellenwert (z. B. 60 %) als Kriterium"], correctIndex:1, fb:"Vergleich mit der Gruppe = soziale Bezugsnorm." },
+  { id:"BN14N", cat:"bn", neg:true, q:"Welche Aussage ist KEIN Beispiel für die <em>soziale Bezugsnorm</em>?", choices:["Rangplatz in der Gruppe","Prozentrang innerhalb der Kohorte","Vergleich mit der eigenen früheren Leistung","Besser als 80 % der Gruppe"], correctIndex:2, fb:"Eigene frühere Leistung = individuelle Bezugsnorm." },
+  { id:"BF16N", cat:"bf", neg:true, q:"Welcher Effekt gehört NICHT zu typischen <em>Bewertungsfehlern des Prüfers</em>?", choices:["Halo-Effekt","Tendenzfehler","Primacy/Erster-Eindruck","Logbuchführung"], correctIndex:3, fb:"Logbuchführung ist kein Bewertungsfehler." },
+  { id:"K31N", cat:"komp", neg:true, q:"Welche Reihenfolge ist <em>NICHT</em> korrekt nach Benner?", choices:["Novize → Fortgeschrittener Anfänger → Kompetent → Erfahren → Experte","Novize → Kompetent → Fortgeschrittener Anfänger → Experte → Erfahren","Erfahren → Novize → Kompetent → Fortgeschrittener Anfänger → Experte","Fortgeschrittener Anfänger → Kompetent → Novize → Erfahren → Experte"], correctIndex:2, fb:"Diese Reihenfolge ist falsch." },
+  { id:"APRV_Q2N", cat:"aprv", type:"ms", neg:true, q:"Praktischer Teil: Welche Aussagen treffen NICHT zu? (Mehrfachauswahl)", choices:[
+      "Es sind exakt drei Fallbeispiele zu bearbeiten",
+      "Es findet kein Fachgespräch statt",
+      "Je Fallbeispiel (inkl. Fachgespräch) max. 10 Minuten",
+      "Innere, Trauma und Reanimation sind freiwillige Zusatzthemen"
+    ], correctIndices:[0,1,2,3], fb:"Tatsächlich: 4 Fälle; mit Fachgespräch; 20–40 Min; Pflichtbereiche." },
+  { id:"APRV_Q5N", cat:"aprv", type:"ms", neg:true, q:"Welche Stundenverteilungen sind NICHT korrekt (4.600 h gesamt)? (Mehrfachauswahl)", choices:['1.920 h Schule · 1.960 h Lehrrettungswache · 720 h Krankenhaus', '2.100 h Schule · 1.800 h Lehrrettungswache · 700 h Krankenhaus', '1.920 h Schule · 720 h Lehrrettungswache · 1.960 h Krankenhaus', '1.600 h Schule · 2.000 h Lehrrettungswache · 1.000 h Krankenhaus'], correctIndices:[1,2,3], fb:"Korrekt ist ausschließlich 1.920/1.960/720; die anderen Kombinationen sind NICHT korrekt." },
+  { id:"APRV_Q6N", cat:"aprv", type:"ms", neg:true, q:"Wer gehört NICHT zwingend zum Prüfungsausschuss? (Mehrfachauswahl)", choices:[
+      "Externer Jurist",
+      "Vertreter der Leitstelle",
+      "Schulleiter",
+      "Vorsitz durch Behörde/beauftragte Person",
+      "Fachprüfer (inkl. Arzt Notfallmedizin)",
+      "Mind. eine praxisanleitende Person"
+    ], correctIndices:[0,1], fb:"Jurist/Leitstelle nicht vorgeschrieben; die anderen sind Mindest-Besetzung." },
+  { id:"Q45N", cat:"gk", type:"ms", neg:true, q:"Welche Maßnahmen erhöhen die <em>Durchführungsobjektivität</em> NICHT? (Mehrfachauswahl)", choices:[
+      "Unterschiedliche Prüfungsumgebungen je Gruppe",
+      "Freie Auswahl unterschiedlicher Aufgaben je Schüler",
+      "Gleiche Aufgabenstellung für alle",
+      "Standardisierte Instruktionen"
+    ], correctIndices:[0,1], fb:"Uneinheitliche Bedingungen/ freie Aufgabenwahl senken Objektivität." },
+  { id:"Q49N", cat:"gk", type:"ms", neg:true, q:"Was erhöht die <em>Auswertungsobjektivität</em> NICHT? (Mehrfachauswahl)", choices:[
+      "Klare Kriterien/Checklisten",
+      "Freie individuelle Interpretation des Prüfers",
+      "Zwei unabhängige Beurteiler",
+      "Musterlösungen/Beispielantworten"
+    ], correctIndices:[1], fb:"Freie Interpretation senkt Auswertungsobjektivität." },
+  { id:"Q52N", cat:"gk", type:"ms", neg:true, q:"Was erhöht die <em>Validität</em> NICHT? (Mehrfachauswahl)", choices:[
+      "Aufgaben passen zum Zielkonstrukt",
+      "Aufgaben, die am Thema vorbeigehen",
+      "Ausreichende Inhaltsabdeckung",
+      "Authentische Settings, wo passend"
+    ], correctIndices:[1], fb:"Am Thema vorbeigehende Aufgaben senken Validität." },
+  { id:"Q48N", cat:"bn", type:"ms", neg:true, q:"Welche Aussagen passen NICHT zur <em>kriterialen Bezugsnorm</em>? (Mehrfachauswahl)", choices:[
+      "Vergleich mit festem Standard",
+      "Vergleich mit der Gruppe",
+      "Grenzwert z.B. 60 %",
+      "Orientierung an Lernzielen"
+    ], correctIndices:[1], fb:"Vergleich mit der Gruppe = soziale Bezugsnorm." },
+  { id:"Q47N", cat:"komp", type:"ms", neg:true, q:"Was fördert den <em>Kompetenzerwerb</em> NICHT? (Mehrfachauswahl)", choices:[
+      "Nur auswendig lernen ohne Anwendung",
+      "Komplexe Aufgaben mit Reflexion",
+      "Regelmäßige strukturierte Rückmeldung",
+      "Selbstständige Planung/Durchführung/Auswertung"
+    ], correctIndices:[0], fb:"Reines Auswendiglernen ohne Anwendung hilft nicht." }
+];
+
+/* CSV-ID-Header */
+const ALL_IDS = POOL.map(it => it.id);
+
+/* ===== UI INIT ===== */
+function initSidebarMeta(){
+  const passEl = document.getElementById("uiPass");
+  const timerEl = document.getElementById("uiTimer");
+  const poolEl  = document.getElementById("uiPool");
+  if (passEl) passEl.textContent = PASS_THRESHOLD + " %";
+  if (timerEl) timerEl.textContent = Math.round(TIME_LIMIT_SECS/60) + " Min";
+  if (poolEl)  poolEl.textContent  = POOL.length;
+}
+initSidebarMeta();
+
+/* ======= SELECTION mit Negativ-Min/Max ======= */
+function groupBy(arr, fn){ return arr.reduce((m,it)=>{ const k=fn(it); (m[k]||(m[k]=[])).push(it); return m; }, {}); }
+
+function pickWithNegQuota(pool, k, wantNeg, state, rng){
+  const pos = pool.filter(it => !it.neg);
+  const neg = pool.filter(it => it.neg);
+  const posSh = seededShuffle(pos, rng);
+  const negSh = seededShuffle(neg, rng);
+  const res = [];
+
+  const negAllowed = Math.max(0, NEG_MAX - state.negCount);
+  let negToTake = Math.min(wantNeg, negAllowed, negSh.length, k);
+
+  res.push(...negSh.slice(0, negToTake));
+  const remain = k - res.length;
+  res.push(...posSh.slice(0, remain));
+
+  if(res.length < k){
+    const extraNegAllowed = Math.max(0, Math.min(k - res.length, NEG_MAX - (state.negCount + res.filter(x=>x.neg).length)));
+    res.push(...negSh.slice(negToTake, negToTake + extraNegAllowed));
+  }
+
+  state.negCount += res.filter(x=>x.neg).length;
+  return res;
+}
+
+function selectItems(rng){
+  const cats = groupBy(POOL, it => it.cat || "other");
+  const msPoolAll = POOL.filter(it => it.type === "ms");
+  const state = { negCount: 0 };
+  const selected = [];
+
+  const notSel = arr => arr.filter(it => !selected.includes(it));
+  const randInt = (min, max) => Math.floor(rng() * (max - min + 1)) + min;
+
+  let negNeed = NEG_MIN;
+
+  // 1) APrV: genau APRV_FIXED
+  {
+    const pool = notSel(cats["aprv"] || []);
+    const wantNeg = Math.min(1, negNeed);
+    const pick = pickWithNegQuota(pool, Math.min(APRV_FIXED, pool.length), wantNeg, state, rng);
+    selected.push(...pick);
+    negNeed = Math.max(0, NEG_MIN - state.negCount);
+  }
+
+  // 2) MS: 5-7
+  {
+    let msTarget = Math.min(randInt(MS_MIN, MS_MAX), notSel(msPoolAll).length);
+    const pool = notSel(msPoolAll);
+    const wantNeg = Math.min(1, negNeed);
+    const pick = pickWithNegQuota(pool, msTarget, wantNeg, state, rng);
+    selected.push(...pick);
+    negNeed = Math.max(0, NEG_MIN - state.negCount);
+  }
+
+  // 3) Bewertungsfehler: max BF_MAX
+  {
+    const pool = notSel(cats["bf"] || []);
+    const wantNeg = Math.min(1, negNeed);
+    const pick = pickWithNegQuota(pool, Math.min(BF_MAX, pool.length), wantNeg, state, rng);
+    selected.push(...pick);
+    negNeed = Math.max(0, NEG_MIN - state.negCount);
+  }
+
+  // 4) Kompetenz & Gütekriterien balanciert
+  {
+    let remaining = TEST_LENGTH - selected.length;
+    const kompPool = notSel(cats["komp"] || []);
+    const gkPool   = notSel(cats["gk"]   || []);
+    const targetKomp = Math.min(Math.ceil(remaining/2), kompPool.length);
+    const targetGk   = Math.min(Math.ceil(remaining/2), gkPool.length);
+
+    const wantNegKomp = Math.min(negNeed, 1);
+    const kompPick = pickWithNegQuota(kompPool, targetKomp, wantNegKomp, state, rng);
+    selected.push(...kompPick);
+    negNeed = Math.max(0, NEG_MIN - state.negCount);
+
+    const wantNegGk = Math.min(negNeed, 1);
+    const gkPick = pickWithNegQuota(gkPool, targetGk, wantNegGk, state, rng);
+    selected.push(...gkPick);
+    negNeed = Math.max(0, NEG_MIN - state.negCount);
+  }
+
+  // 5) Rest (bn/fg/other)
+  {
+    let left = TEST_LENGTH - selected.length;
+    if(left > 0){
+      const restPool = ["bn","fg","other"].flatMap(c => cats[c] || []);
+      const pool = notSel(restPool);
+      const wantNeg = Math.min(negNeed, left);
+      const pick = pickWithNegQuota(pool, left, wantNeg, state, rng);
+      selected.push(...pick);
+      negNeed = Math.max(0, NEG_MIN - state.negCount);
+    }
+  }
+
+  if(selected.length < TEST_LENGTH){
+    const pool = notSel(POOL);
+    const need = TEST_LENGTH - selected.length;
+    const wantNeg = Math.min(negNeed, need);
+    const pick = pickWithNegQuota(pool, need, wantNeg, state, rng);
+    selected.push(...pick);
+  }
+
+  return selected.slice(0, TEST_LENGTH);
+}
+
+/* ======= STATE ======= */
+let rng = null;
+let items = [];
+let submitted = false;
+let remaining = TIME_LIMIT_SECS;
+let timerInt = null;
+let lastCsv = "";
+let timeExpired = false;
+
+/* ======= UTILS ======= */
+function fmtTime(t){
+  const m = Math.floor(t/60).toString();
+  const s = (t%60).toString().padStart(2,'0');
+  return `${m}:${s}`;
+}
+function countAnswered(){
+  const cards = Array.from(document.querySelectorAll("#quiz .card"));
+  let answered = 0;
+  cards.forEach((card, idx)=>{
+    const inputs = Array.from(card.querySelectorAll('input[name="q'+idx+'"]'));
+    if(inputs.some(inp => inp.checked)) answered++;
+  });
+  return { answered, total: cards.length };
+}
+function updateSubmitState(){
+  const {answered, total} = countAnswered();
+  const allAnswered = answered === total && total > 0;
+  const btnMain = document.getElementById("submitBtn");
+  const btnSide = document.getElementById("submitBtnSide");
+  const msg = document.getElementById("incompleteMsg");
+  if (REQUIRE_ALL_ANSWERED && !submitted){
+    btnMain.disabled = !allAnswered;
+    btnSide.disabled = !allAnswered;
+    if(!allAnswered){
+      msg.classList.remove("hidden");
+      msg.textContent = `Bitte alle Fragen beantworten (${total-answered} fehlt/fehlen).`;
+    } else {
+      msg.classList.add("hidden");
+    }
+  }
+}
+function updateProgressUI(){
+  const total = items.length || 0;
+  const {answered} = countAnswered();
+  const pct = total ? Math.round((answered/total)*100) : 0;
+  document.getElementById("answeredCount").textContent = answered;
+  document.getElementById("totalCount").textContent = total;
+  document.getElementById("progressBar").style.width = pct + "%";
+  updateSubmitState();
+}
+function scrollToFirstUnanswered(){
+  const cards = Array.from(document.querySelectorAll("#quiz .card"));
+  for(let i=0;i<cards.length;i++){
+    const inputs = cards[i].querySelectorAll('input[name="q'+i+'"]');
+    const any = Array.from(inputs).some(inp => inp.checked);
+    cards[i].classList.remove("missing");
+    if(!any){
+      cards[i].classList.add("missing");
+      cards[i].scrollIntoView({behavior:"smooth", block:"center"});
+      break;
+    }
+  }
+}
+
+/* ======= TIMER (Sidebar) ======= */
+function startTimer(){
+  try{ clearInterval(timerInt); }catch(e){}
+  submitted = false;
+  remaining = TIME_LIMIT_SECS;
+  timeExpired = false;
+  const sideEl = document.getElementById("timerSide");
+  const timeMsg = document.getElementById("timeMsg");
+  if (sideEl) sideEl.classList.remove("warning");
+  if (timeMsg) timeMsg.classList.add("hidden");
+
+  const tick = () => {
+    const txt = `Zeit: ${fmtTime(remaining)}`;
+    if (sideEl) sideEl.textContent = txt;
+
+    if (remaining <= 60) {
+      if (sideEl) sideEl.classList.add("warning");
+    }
+    if (remaining <= 0) {
+      clearInterval(timerInt);
+      timeExpired = true;
+      if (timeMsg){
+        timeMsg.textContent = "Zeit abgelaufen – bitte beantworte die restlichen Fragen; Abgabe wird freigeschaltet, sobald alles beantwortet ist.";
+        timeMsg.classList.remove("hidden");
+      }
+      // nicht automatisch abgeben
+      return;
+    }
+    remaining--;
+  };
+  tick();
+  timerInt = setInterval(tick, 1000);
+}
+
+/* ======= RENDER ======= */
+function renderQuiz(){
+  const container = document.getElementById("quiz");
+  container.innerHTML = "";
+  items.forEach((item, idx) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    const h3 = document.createElement("h3");
+    const negBadge = item.neg ? ' <span class="neg-badge">(neg. formuliert)</span>' : '';
+    h3.innerHTML = `Frage ${idx + 1}${negBadge}`;
+    card.appendChild(h3);
+    const p = document.createElement("p");
+    p.innerHTML = item.q;
+    card.appendChild(p);
+
+    const isMS = item.type === "ms";
+    const choiceOrder = seededShuffle(item.choices.map((c,i)=>({c,i})), rng);
+    const div = document.createElement("div");
+    div.className = "choices";
+    choiceOrder.forEach(({c,i}, k)=>{
+      const id = `q${idx}_opt${k}`;
+      const label = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = isMS ? "checkbox" : "radio";
+      input.name = `q${idx}`;
+      input.value = k;
+      input.id = id;
+      label.setAttribute("for", id);
+      label.appendChild(input);
+      label.append(" " + c);
+      div.appendChild(label);
+      input.addEventListener("change", (ev)=>{
+        // Entferne Missing-Markierung auf Antwort
+        card.classList.remove("missing");
+        updateProgressUI();
+      });
+    });
+
+    // Korrekt-Maske nach Shuffle
+    const corrBits = new Array(choiceOrder.length).fill(0);
+    if(isMS){
+      const corrSet = new Set(item.correctIndices || []);
+      choiceOrder.forEach((o, k) => { if (corrSet.has(o.i)) corrBits[k] = 1; });
+    }else{
+      const mappedCorrect = choiceOrder.findIndex(o => o.i === item.correctIndex);
+      if(mappedCorrect >= 0) corrBits[mappedCorrect] = 1;
+    }
+
+    card.dataset.choices = JSON.stringify(choiceOrder.map(o=>o.c));
+    card.dataset.corrBits = JSON.stringify(corrBits);
+    card.dataset.feedback = item.fb || "";
+    card.dataset.itemId = item.id;
+    card.dataset.isMS = isMS ? "1" : "0";
+    card.appendChild(div);
+    container.appendChild(card);
+  });
+  updateProgressUI();
+}
+
+/* ======= AUSWERTUNG ======= */
+function grade(){
+  const cards = Array.from(document.querySelectorAll("#quiz .card"));
+  let sumRaw = 0;
+  const details = [];
+  cards.forEach((card, idx)=>{
+    const corrBits = JSON.parse(card.dataset.corrBits);
+    const inputs = Array.from(card.querySelectorAll('input[name="q'+idx+'"]'));
+    const selBits = inputs.map(inp => (inp.checked ? 1 : 0));
+    const isMS = card.dataset.isMS === "1";
+
+    let raw = 0;
+    let ok01 = 0;
+    if(isMS){
+      const numCorr = corrBits.reduce((s,v)=>s+v,0);
+      const TP = selBits.reduce((s,v,i)=> s + (v===1 && corrBits[i]===1 ? 1 : 0), 0);
+      const FP = selBits.reduce((s,v,i)=> s + (v===1 && corrBits[i]===0 ? 1 : 0), 0);
+      const FN = numCorr - TP;
+      if(MS_SCORING === "all_or_nothing"){
+        raw = (FP===0 && FN===0) ? 1 : 0;
+      }else{
+        raw = Math.max(0, TP - FP) / Math.max(1, numCorr);
+      }
+      ok01 = (FP===0 && FN===0) ? 1 : 0;
+    }else{
+      const chosen = selBits.findIndex(b => b===1);
+      const corrIndex = corrBits.findIndex(b => b===1);
+      raw = (chosen === corrIndex) ? 1 : 0;
+      ok01 = raw;
+    }
+    sumRaw += raw;
+
+    const choices = JSON.parse(card.dataset.choices);
+    const correctTexts = choices.filter((_,i)=>corrBits[i]===1);
+    const chosenTexts = choices.filter((_,i)=>selBits[i]===1);
+    const allCorrect = ok01===1;
+    details.push({
+      id: card.dataset.itemId,
+      qIndex: idx+1,
+      ok: allCorrect,
+      chosenText: chosenTexts.length ? chosenTexts.join(" • ") : "—",
+      correctText: correctTexts.join(" • "),
+      feedback: card.dataset.feedback || "",
+      raw: raw,
+      ok01: ok01
+    });
+  });
+  const total = cards.length;
+  const percent = Math.round((sumRaw/total)*100);
+  const passed = percent >= PASS_THRESHOLD;
+  return { percent, passed, details, totalItems: total };
+}
+
+function showSolutions(details){
+  const cards = Array.from(document.querySelectorAll("#quiz .card"));
+  details.forEach((d, i)=>{
+    const sol = document.createElement("div");
+    sol.className = "sol";
+    sol.innerHTML = `<div><span class="tag">Deine Antwort:</span> ${d.chosenText}</div>
+                     <div><span class="tag">Richtig:</span> ${d.correctText} ${d.ok ? "✅" : "❌"}</div>
+                     <div class="muted">${d.feedback}</div>`;
+    cards[i].appendChild(sol);
+  });
+}
+
+/* ======= CSV ======= */
+function toCsvRow(vals){
+  return vals.map(v => {
+    if(v === null || v === undefined) return "";
+    const s = String(v);
+    return (/[,\"\n]/.test(s)) ? ('"' + s.replace(/"/g,'""') + '"') : s;
+  }).join(",");
+}
+function buildCsv({percent, passed, timeSpent, details}){
+  const pid = (document.getElementById("pid").value || "").trim();
+  const ts = new Date().toISOString();
+  const n = details.length;
+  const header = ["participant_code","access_code","timestamp_iso","percent","passed","note","errors","time_spent_secs","timed_out","n_items","neg_min","neg_max"];
+  const ids = ALL_IDS.slice();
+  const scoreCols = ids.map(id => `score_${id}`);
+  const rawCols = ids.map(id => `raw_${id}`);
+  const gx = computeNote(passed, details);
+  const row = [pid, ACCESS_CODE, ts, percent, passed ? 1 : 0, gx.note, gx.errors, timeSpent, timeExpired ? 1 : 0, n, NEG_MIN, NEG_MAX];
+  const ansScore = Object.fromEntries(details.map(d => [d.id, d.ok01 ? 1 : 0]));
+  const ansRaw = Object.fromEntries(details.map(d => [d.id, typeof d.raw==="number" ? d.raw.toFixed(3) : ""]));
+  const scores = ids.map(id => (id in ansScore) ? ansScore[id] : "");
+  const raws = ids.map(id => (id in ansRaw) ? ansRaw[id] : "");
+  const csv = [toCsvRow(header.concat(scoreCols, rawCols)), toCsvRow(row.concat(scores, raws))].join("\n");
+  return csv;
+}
+function downloadCSV(content, filename){
+  const blob = new Blob([content], {type: "text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ======= EVENTS ======= */
+document.getElementById("startBtn").addEventListener("click", ()=>{
+  const acc = (document.getElementById("access").value || "").trim();
+  const pid = (document.getElementById("pid").value || "").trim();
+  const msg = document.getElementById("gateMsg");
+  msg.textContent = "";
+  if(!acc || !pid){ msg.textContent = "Bitte Zugangscode und Teilnehmercode eingeben."; return; }
+  if(acc !== ACCESS_CODE){ msg.textContent = "Zugangscode ist falsch."; return; }
+  const seed = cyrb53(pid + "::" + ACCESS_CODE);
+  rng = mulberry32(seed);
+  items = selectItems(rng);
+  document.getElementById("gateBox").classList.add("hidden");
+  document.getElementById("actionBar").classList.remove("hidden");
+  document.getElementById("quiz").classList.remove("hidden");
+  const negCountPlanned = `${NEG_MIN}–${NEG_MAX}`;
+  document.getElementById("meta").textContent = `${TEST_TITLE} · Bestehensgrenze: ${PASS_THRESHOLD}% · Zeitlimit: ${Math.round(TIME_LIMIT_SECS/60)} Min · Items: ${items.length}/${POOL.length} · Negativ-Items: ${negCountPlanned} (tatsächlich variiert)`;
+  renderQuiz();
+  startTimer();
+});
+
+function trySubmit(){
+  if(submitted) return;
+  if(REQUIRE_ALL_ANSWERED){
+    const {answered, total} = countAnswered();
+    if(answered < total){
+      const msg = document.getElementById("incompleteMsg");
+      if(msg){
+        msg.textContent = `Bitte alle Fragen beantworten (${total-answered} fehlt/fehlen).`;
+        msg.classList.remove("hidden");
+      }
+      scrollToFirstUnanswered();
+      return; // block
+    }
+  }
+  submitted = true;
+  try{ clearInterval(timerInt); }catch(e){}
+  const res = grade();
+  const percent = res && typeof res.percent === "number" ? res.percent : 0;
+  const passed = res && typeof res.passed === "boolean" ? res.passed : false;
+  const details = (res && res.details) ? res.details : [];
+  const box = document.getElementById("summary");
+  box.className = "result";
+  const gx = computeNote(passed, details);
+  box.classList.add(gx.cls);
+  const timeSpent = TIME_LIMIT_SECS - Math.max(remaining || 0, 0);
+  const statusTxt = passed ? "Bestanden ✅" : "Nicht bestanden ❌";
+  const negUsed = items.filter(it => it.neg).length;
+  const timeSuffix = timeExpired ? " · (Zeitlimit überschritten)" : "";
+  box.textContent = `${percent}% – ${statusTxt} · Note ${gx.note} (${gx.label}) · ${gx.errors} Fehler · Negativ-Items im Test: ${negUsed} (Min ${NEG_MIN}, Max ${NEG_MAX})${timeSuffix}`;
+  box.classList.remove("hidden");
+  if(details.length){ showSolutions(details); }
+  try{
+    lastCsv = buildCsv({percent, passed, timeSpent, details});
+    document.getElementById("exportBox").classList.remove("hidden");
+  }catch(e){ console.error("CSV build failed", e); }
+  document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(inp => inp.disabled = true);
+  const btn = document.getElementById("submitBtn"); if(btn) btn.disabled = true;
+  const btn2 = document.getElementById("submitBtnSide"); if(btn2) btn2.disabled = true;
+  const rb = document.getElementById("retryBtn"); if(rb) rb.classList.remove("hidden");
+  try{ window.scrollTo({ top: document.body.scrollHeight, behavior:"smooth" }); }catch(e){}
+}
+
+document.getElementById("submitBtn").addEventListener("click", trySubmit);
+document.getElementById("submitBtnSide").addEventListener("click", trySubmit);
+document.getElementById("retryBtn").addEventListener("click", ()=>location.reload());
+
+document.getElementById("downloadCsvBtn").addEventListener("click", ()=>{
+  const pid = (document.getElementById("pid").value || "anon").replace(/[^a-zA-Z0-9_-]+/g,"");
+  downloadCSV(lastCsv, `pal_response_${pid || "anon"}_${new Date().toISOString().slice(0,10)}.csv`);
+});
+document.getElementById("copyCsvBtn").addEventListener("click", async ()=>{
+  try{ await navigator.clipboard.writeText(lastCsv); alert("CSV in die Zwischenablage kopiert."); }
+  catch(e){ alert("Kopieren nicht erlaubt – bitte Download verwenden."); }
+});
+</script>
+</body>
+</html>
